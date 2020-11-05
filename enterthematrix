@@ -1,54 +1,36 @@
 #!/usr/bin/env python3
+from sys import argv
 from time import sleep
-from random import choice
-from curses import wrapper, use_default_colors
+from random import choice, random
+from curses import wrapper, curs_set, use_default_colors
 
-class CharStream:
-    def __init__(self, max_size):
-        self.max_size = max_size
-        self.chars = []
-        self.is_reduced = False
-        self.space = chr(0x20)
-
-    def expand(self, char):
-        if not self.is_full:
-            self.chars.append(char)
-
-    def reduce(self):
-        for idx, char in enumerate(self.chars):
-            if char != self.space:
-                self.chars[idx] = self.space
-                break
-            elif idx >= len(self) - 1:
-                self.is_reduced = True
-
-    @property
-    def is_full(self):
-        return len(self) >= self.max_size
-
-    def __len__(self):
-        return len(self.chars)
-
-    def __getitem__(self, idx):
-        return self.chars[idx]
+DEFAULT_VELOCITY   = 20
+ANIMATION_INTERVAL = 0.06
+FULLNESS           = 1
+STICKINESS         = 1e-7
+MAX_COLS           = 640
+ESCAPE_CHARS       = ('q', 'Q',)
+SPACE              = chr(0x20)
 
 class MatrixAnimation:
-    def __init__(self, stdscr):
+    def __init__(self, stdscr, velocity, run=True):
         self.stdscr = stdscr
         self.stdscr.nodelay(1)
+        curs_set(0)
         use_default_colors()
 
-        self.max_cols = 640
-        self.animation_interval = 0.06
-        self.acceleration = 10
-        self.fullness = 1
-        self.escape_char = 'q'
+        self.velocity           = velocity
+        self.animation_interval = ANIMATION_INTERVAL
+        self.fullness           = FULLNESS
+        self.stickiness         = STICKINESS
+        self.max_cols           = max(MAX_COLS, self.num_cols)
+        self.escape_chars       = ESCAPE_CHARS
 
-        self.alphabet = self.get_alphabet()
-        self.char_streams = [ None ] * self.max_cols
-        self.num_streams = 0
+        self.alphabet     = self.get_alphabet()
+        self.char_streams = [None] * self.max_cols
+        self.num_streams  = 0
 
-        self.run()
+        if run: self.run()
 
     def get_alphabet(self):
         k, num_katas  = 0xff66,   56
@@ -76,7 +58,7 @@ class MatrixAnimation:
     def run(self):
         self.stdscr.clear()
         key = None
-        while key != ord(self.escape_char):
+        while key not in map(ord, self.escape_chars):
             self.next_frame()
             self.stdscr.refresh()
             key = self.stdscr.getch()
@@ -89,15 +71,15 @@ class MatrixAnimation:
         self.reduce_streams()
 
     def add_streams(self):
-        for _ in range(self.acceleration):
+        for _ in range(self.velocity):
             self.add_stream()
 
     def add_stream(self):
         if self.num_streams < self.max_streams:
             stream_idx = choice(range(self.num_cols))
             if self.char_streams[stream_idx] is None:
-                stream_max_size = choice(range(1, self.num_rows + 1))
-                stream = CharStream(stream_max_size)
+                max_size = choice(range(1, self.num_rows + 1))
+                stream = CharStream(max_size, self.stickiness)
                 self.char_streams[stream_idx] = stream
                 self.num_streams += 1
 
@@ -119,8 +101,7 @@ class MatrixAnimation:
     def render_stream(self, stream, col):
         for idx in range(len(stream)):
             row = idx
-            if self.can_addch(row, col):
-                self.stdscr.addch(row, col, stream[idx])
+            self.addch(row, col, stream[idx])
 
     def reduce_streams(self):
         for idx, stream in enumerate(self.char_streams):
@@ -132,11 +113,57 @@ class MatrixAnimation:
         if stream.is_reduced:
             self.char_streams[stream_idx] = None
             self.num_streams -= 1
+            start_row, col = stream.max_size, stream_idx
+            self.clear_to_bottom(start_row, col)
+
+    def clear_to_bottom(self, start_row, col):
+        for row in range(start_row, self.num_rows):
+            self.addch(row, col, SPACE)
+
+    def addch(self, row, col, char):
+        if self.can_addch(row, col):
+            self.stdscr.addch(row, col, char)
 
     def can_addch(self, row, col):
         return row < self.num_rows - 1 and col < self.num_cols - 1
 
+class CharStream:
+    def __init__(self, max_size, stickiness):
+        self.max_size = max_size
+        self.stickiness = stickiness
+        self.chars = []
+        self.is_reduced = False
+        self.reduce_idx = 0
+
+    def expand(self, char):
+        if not self.is_full:
+            sticky = bool(random() <= self.stickiness)
+            self.chars.append(Char(char, sticky))
+
+    def reduce(self):
+        if not self.chars[self.reduce_idx].sticky:
+            self.chars[self.reduce_idx].val = SPACE
+        self.reduce_idx += 1
+        if self.reduce_idx >= len(self):
+            self.is_reduced = True
+
+    @property
+    def is_full(self):
+        return len(self) >= self.max_size
+
+    def __len__(self):
+        return len(self.chars)
+
+    def __getitem__(self, idx):
+        return self.chars[idx].val
+
+class Char:
+    def __init__(self, val, sticky):
+        self.val = val
+        self.sticky = sticky
+
 if __name__ == '__main__':
-    wrapper(MatrixAnimation)
+    velocity = int(argv[1]) if len(argv) > 1 else DEFAULT_VELOCITY
+    wrapper(MatrixAnimation, velocity)
     exit(0)
 
