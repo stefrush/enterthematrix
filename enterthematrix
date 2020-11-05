@@ -4,16 +4,16 @@ from time import sleep
 from random import choice, random
 from curses import wrapper, curs_set, use_default_colors
 
-DEFAULT_VELOCITY   = 20
-ANIMATION_INTERVAL = 0.06
+DEFAULT_VELOCITY   = 32
+ANIMATION_INTERVAL = 0.05
 FULLNESS           = 1
-STICKINESS         = 1e-7
+STICKINESS         = 0.64e-3
 MAX_COLS           = 640
 ESCAPE_CHARS       = ('q', 'Q',)
 SPACE              = chr(0x20)
 
 class MatrixAnimation:
-    def __init__(self, stdscr, velocity, run=True):
+    def __init__(self, stdscr, velocity, run = True):
         self.stdscr = stdscr
         self.stdscr.nodelay(1)
         curs_set(0)
@@ -92,17 +92,6 @@ class MatrixAnimation:
         char = chr(choice(self.alphabet))
         stream.expand(char)
 
-    def render_streams(self):
-        for idx, stream in enumerate(self.char_streams):
-            if stream is not None:
-                col = idx
-                self.render_stream(stream, col)
-
-    def render_stream(self, stream, col):
-        for idx in range(len(stream)):
-            row = idx
-            self.addch(row, col, stream[idx])
-
     def reduce_streams(self):
         for idx, stream in enumerate(self.char_streams):
             if stream is not None and stream.is_full:
@@ -113,12 +102,17 @@ class MatrixAnimation:
         if stream.is_reduced:
             self.char_streams[stream_idx] = None
             self.num_streams -= 1
-            start_row, col = stream.max_size, stream_idx
-            self.clear_to_bottom(start_row, col)
 
-    def clear_to_bottom(self, start_row, col):
-        for row in range(start_row, self.num_rows):
-            self.addch(row, col, SPACE)
+    def render_streams(self):
+        for idx, stream in enumerate(self.char_streams):
+            if stream is not None:
+                col = idx
+                self.render_stream(stream, col)
+
+    def render_stream(self, stream, col):
+        for idx in range(len(stream)):
+            row = idx
+            self.addch(row, col, stream[idx])
 
     def addch(self, row, col, char):
         if self.can_addch(row, col):
@@ -141,11 +135,12 @@ class CharStream:
             self.chars.append(Char(char, sticky))
 
     def reduce(self):
+        if self.reduce_idx >= len(self):
+            self.is_reduced = True
+            return
         if not self.chars[self.reduce_idx].sticky:
             self.chars[self.reduce_idx].val = SPACE
         self.reduce_idx += 1
-        if self.reduce_idx >= len(self):
-            self.is_reduced = True
 
     @property
     def is_full(self):
