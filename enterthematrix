@@ -1,43 +1,56 @@
 #!/usr/bin/env python3
+#./enterthematrix [BANDWIDTH] [TRAFFIC]
+
 from sys import argv
-from time import sleep
 from random import choice, random
+from time import sleep
+from asyncio import run
 from curses import (
-    wrapper, curs_set, use_default_colors,
-    init_pair, color_pair, COLOR_GREEN
+    wrapper,
+    curs_set,
+    use_default_colors,
+    init_pair,
+    color_pair,
+    COLOR_GREEN,
 )
 
-DEFAULT_VELOCITY   = 32
-ANIMATION_INTERVAL = 0.05
+DEFAULT_BANDWIDTH  = 4
+DEFAULT_TRAFFIC    = 16
+ANIMATION_INTERVAL = 0.025
 FULLNESS           = 1
 STICKINESS         = 0.64e-3
-MAX_COLS           = 640
-ESCAPE_CHARS       = ('q', 'Q',)
+MAX_COLS           = 1920
+EXIT_KEYS          = ('q', 'Q',)
 SPACE              = chr(0x20)
 HIGHLIGHT_COLOR    = 0
 STANDARD_COLOR     = 1
 
-
 class MatrixAnimation:
-    def __init__(self, stdscr, velocity, run = True):
+    def __init__(self, stdscr, bandwidth, traffic):
         self.stdscr = stdscr
         self.stdscr.nodelay(1)
         curs_set(0)
         use_default_colors()
         init_pair(STANDARD_COLOR, COLOR_GREEN, -1)
 
-        self.velocity           = velocity
+        self.bandwidth          = bandwidth
+        self.traffic            = traffic
         self.animation_interval = ANIMATION_INTERVAL
         self.fullness           = FULLNESS
         self.stickiness         = STICKINESS
         self.max_cols           = max(MAX_COLS, self.num_cols)
-        self.escape_chars       = ESCAPE_CHARS
+        self.exit_keys          = EXIT_KEYS
 
         self.alphabet     = self.get_alphabet()
-        self.char_streams = [None] * self.max_cols
+        self.char_streams = [ [] for _ in range(self.max_cols) ]
         self.num_streams  = 0
+        self.use_async    = self.can_use_asyncio()
 
-        if run: self.run()
+        if self.use_async:
+            self.animation_interval *= 2
+            run(self.run_async())
+        else:
+            self.run()
 
     def get_alphabet(self):
         k, num_katas  = 0xff66,   56
@@ -50,6 +63,13 @@ class MatrixAnimation:
             *range(n, n + num_nums),
         ]
 
+    def can_use_asyncio(self):
+        try:
+            from asyncio import to_thread
+        except ImportError:
+            return False
+        return True
+
     @property
     def num_rows(self):
         return self.stdscr.getmaxyx()[0]
@@ -60,16 +80,25 @@ class MatrixAnimation:
 
     @property
     def max_streams(self):
-        return int(self.num_cols * self.fullness)
+        return int(self.num_cols * self.bandwidth * self.fullness)
 
-    def run(self):
-        self.stdscr.clear()
+    async def run_async(self):
+        from asyncio import to_thread, sleep as async_sleep, gather
         key = None
-        while key not in map(ord, self.escape_chars):
-            self.next_frame()
+        while key not in map(ord, self.exit_keys):
+            next_frame = to_thread(self.next_frame)
+            animation_interval = async_sleep(self.animation_interval)
+            await gather(next_frame, animation_interval)
             self.stdscr.refresh()
             key = self.stdscr.getch()
+
+    def run(self):
+        key = None
+        while key not in map(ord, self.exit_keys):
+            self.next_frame()
+            self.stdscr.refresh()
             sleep(self.animation_interval)
+            key = self.stdscr.getch()
 
     def next_frame(self):
         self.add_streams()
@@ -78,21 +107,22 @@ class MatrixAnimation:
         self.reduce_streams()
 
     def add_streams(self):
-        for _ in range(self.velocity):
-            self.add_stream()
+        for _ in range(self.traffic):
+            if self.num_streams < self.max_streams:
+                self.add_stream()
 
     def add_stream(self):
-        if self.num_streams < self.max_streams:
-            stream_idx = choice(range(self.num_cols))
-            if self.char_streams[stream_idx] is None:
-                max_size = choice(range(1, self.num_rows + 1))
-                stream = CharStream(max_size, self.stickiness)
-                self.char_streams[stream_idx] = stream
-                self.num_streams += 1
+        col = choice(range(self.num_cols))
+        if len(self.char_streams[col]) < self.bandwidth:
+            max_size = choice(range(1, self.num_rows + 1))
+            stickiness = self.stickiness
+            stream = CharStream(max_size, stickiness)
+            self.char_streams[col].append(stream)
+            self.num_streams += 1
 
     def expand_streams(self):
-        for stream in self.char_streams:
-            if stream is not None:
+        for col_streams in self.char_streams:
+            for stream in col_streams:
                 self.expand_stream(stream)
 
     def expand_stream(self, stream):
@@ -100,20 +130,30 @@ class MatrixAnimation:
         stream.expand(char)
 
     def reduce_streams(self):
-        for idx, stream in enumerate(self.char_streams):
-            if stream is not None and stream.is_full:
-                self.reduce_stream(stream, idx)
+        for col, col_streams in enumerate(self.char_streams):
+            for idx, stream in enumerate(col_streams):
+                if stream.is_full:
+                    is_reduced = self.reduce_stream(stream)
+                    if is_reduced:
+                        self.char_streams[col][idx] = None
+                        self.num_streams -= 1
+            self.remove_reduced_streams(col)
 
-    def reduce_stream(self, stream, stream_idx):
+    def reduce_stream(self, stream):
         stream.reduce()
-        if stream.is_reduced:
-            self.char_streams[stream_idx] = None
-            self.num_streams -= 1
+        return stream.is_reduced
+
+    def remove_reduced_streams(self, col):
+        idx = 0
+        while idx < len(self.char_streams[col]):
+            if self.char_streams[col][idx] is None:
+                self.char_streams[col].pop(idx)
+            else:
+                idx += 1
 
     def render_streams(self):
-        for idx, stream in enumerate(self.char_streams):
-            if stream is not None:
-                col = idx
+        for col, col_streams in enumerate(self.char_streams):
+            for stream in col_streams:
                 self.render_stream(stream, col)
 
     def render_stream(self, stream, col):
@@ -174,7 +214,8 @@ class Char:
         self.sticky = sticky
 
 if __name__ == '__main__':
-    velocity = int(argv[1]) if len(argv) > 1 else DEFAULT_VELOCITY
-    wrapper(MatrixAnimation, velocity)
+    bandwidth = int(argv[1]) if len(argv) > 1 else DEFAULT_BANDWIDTH
+    traffic = int(argv[2]) if len(argv) > 2 else DEFAULT_TRAFFIC
+    wrapper(MatrixAnimation, bandwidth, traffic)
     exit(0)
 
