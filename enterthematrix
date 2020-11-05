@@ -165,7 +165,7 @@ class CharStream:
 
     def is_highlighted(self, idx):
         return self[idx].sticky or \
-            (self.is_reducing and idx == 0) or \
+            (self.is_reducing and idx == self.reduce_idx) or \
             (not self.is_reducing and idx >= (len(self) - 1))
 
 class Char:
