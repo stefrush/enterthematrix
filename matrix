@@ -1,0 +1,135 @@
+#!/usr/bin/env python3
+from time import sleep
+from random import choice
+from curses import wrapper, use_default_colors
+
+class CharStream:
+    def __init__(self, max_size):
+        self.max_size = max_size
+        self.chars = []
+
+    def expand(self, char):
+        if not self.is_full:
+            self.chars.append(char)
+
+    @property
+    def is_full(self):
+        return len(self) >= self.max_size
+
+    def __len__(self):
+        return len(self.chars)
+
+    def __getitem__(self, idx):
+        return self.chars[idx]
+
+class MatrixAnimation:
+    def __init__(self, stdscr):
+        self.stdscr = stdscr
+        self.stdscr.nodelay(1)
+        use_default_colors()
+
+        self.max_cols = 640
+        self.animation_interval = 0.05
+        self.acceleration = 8
+        self.fullness = 0.9
+        self.escape_char = 'q'
+
+        self.alphabet = self.get_alphabet()
+        self.char_streams = [ None ] * self.max_cols
+        self.num_streams = 0
+
+        self.run()
+
+    def get_alphabet(self):
+        k, num_katas  = 0xff66,   56
+        a, num_alphas = ord('A'), 26
+        n, num_nums   = ord('0'), 10
+
+        return [
+            *range(k, k + num_katas),
+            *range(a, a + num_alphas),
+            *range(n, n + num_nums),
+        ]
+
+    @property
+    def num_rows(self):
+        return self.stdscr.getmaxyx()[0]
+
+    @property
+    def num_cols(self):
+        return self.stdscr.getmaxyx()[1]
+
+    @property
+    def max_streams(self):
+        return int(self.num_cols * self.fullness)
+
+    def run(self):
+        self.stdscr.clear()
+        key = None
+        while key != ord(self.escape_char):
+            self.next_frame()
+            self.stdscr.refresh()
+            key = self.stdscr.getch()
+            sleep(self.animation_interval)
+
+    def next_frame(self):
+        self.add_streams()
+        self.expand_streams()
+        self.render_streams()
+        self.clear_streams()
+
+    def add_streams(self):
+        for _ in range(self.acceleration):
+            self.add_stream()
+
+    def add_stream(self):
+        if self.num_streams < self.max_streams:
+            stream_idx = choice(range(self.num_cols))
+            if self.char_streams[stream_idx] is None:
+                stream_max_size = self.num_rows
+                stream = CharStream(stream_max_size)
+                self.char_streams[stream_idx] = stream
+                self.num_streams += 1
+
+    def expand_streams(self):
+        for stream in self.char_streams:
+            if stream is not None:
+                self.expand_stream(stream)
+
+    def expand_stream(self, stream):
+        char = chr(choice(self.alphabet))
+        stream.expand(char)
+
+    def render_streams(self):
+        for idx, stream in enumerate(self.char_streams):
+            if stream is not None:
+                col = idx
+                self.render_stream(stream, col)
+
+    def render_stream(self, stream, col):
+        for idx in range(len(stream)):
+            row = idx
+            if self.can_addch(row, col):
+                self.stdscr.addch(row, col, stream[idx])
+
+    def clear_streams(self):
+        for idx, stream in enumerate(self.char_streams):
+            if stream is not None and stream.is_full:
+                col = idx
+                self.clear_stream(stream, col)
+                self.char_streams[idx] = None
+                self.num_streams -= 1
+
+    def clear_stream(self, stream, col):
+        for idx in range(len(stream)):
+            row = idx
+            if self.can_addch(row, col):
+                self.stdscr.addch(row, col, ord(' '))
+
+    def can_addch(self, row, col):
+        return row < self.num_rows - 1 and col < self.num_cols - 1
+
+if __name__ == '__main__':
+    wrapper(MatrixAnimation)
+    exit(0)
+
