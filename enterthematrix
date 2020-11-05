@@ -7,10 +7,20 @@ class CharStream:
     def __init__(self, max_size):
         self.max_size = max_size
         self.chars = []
+        self.is_reduced = False
+        self.space = chr(0x20)
 
     def expand(self, char):
         if not self.is_full:
             self.chars.append(char)
+
+    def reduce(self):
+        for idx, char in enumerate(self.chars):
+            if char != self.space:
+                self.chars[idx] = self.space
+                break
+            elif idx >= len(self) - 1:
+                self.is_reduced = True
 
     @property
     def is_full(self):
@@ -29,9 +39,9 @@ class MatrixAnimation:
         use_default_colors()
 
         self.max_cols = 640
-        self.animation_interval = 0.05
-        self.acceleration = 8
-        self.fullness = 0.9
+        self.animation_interval = 0.06
+        self.acceleration = 10
+        self.fullness = 1
         self.escape_char = 'q'
 
         self.alphabet = self.get_alphabet()
@@ -76,7 +86,7 @@ class MatrixAnimation:
         self.add_streams()
         self.expand_streams()
         self.render_streams()
-        self.clear_streams()
+        self.reduce_streams()
 
     def add_streams(self):
         for _ in range(self.acceleration):
@@ -86,7 +96,7 @@ class MatrixAnimation:
         if self.num_streams < self.max_streams:
             stream_idx = choice(range(self.num_cols))
             if self.char_streams[stream_idx] is None:
-                stream_max_size = self.num_rows
+                stream_max_size = choice(range(1, self.num_rows + 1))
                 stream = CharStream(stream_max_size)
                 self.char_streams[stream_idx] = stream
                 self.num_streams += 1
@@ -112,19 +122,16 @@ class MatrixAnimation:
             if self.can_addch(row, col):
                 self.stdscr.addch(row, col, stream[idx])
 
-    def clear_streams(self):
+    def reduce_streams(self):
         for idx, stream in enumerate(self.char_streams):
             if stream is not None and stream.is_full:
-                col = idx
-                self.clear_stream(stream, col)
-                self.char_streams[idx] = None
-                self.num_streams -= 1
+                self.reduce_stream(stream, idx)
 
-    def clear_stream(self, stream, col):
-        for idx in range(len(stream)):
-            row = idx
-            if self.can_addch(row, col):
-                self.stdscr.addch(row, col, ord(' '))
+    def reduce_stream(self, stream, stream_idx):
+        stream.reduce()
+        if stream.is_reduced:
+            self.char_streams[stream_idx] = None
+            self.num_streams -= 1
 
     def can_addch(self, row, col):
         return row < self.num_rows - 1 and col < self.num_cols - 1
