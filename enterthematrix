@@ -191,27 +191,27 @@ class CharStream:
 
     def expand(self, char):
         if not self.is_full:
-            sticky = bool(random() <= self.stickiness)
-            self.chars.append(Char(char, sticky))
+            is_sticky = bool(random() <= self.stickiness)
+            self.chars.append(Char(char, is_sticky))
 
     def reduce(self):
         self.is_reducing = True
         if self.reduce_idx >= len(self):
             self.is_reduced = True
             return
-        if not self.chars[self.reduce_idx].sticky:
+        if not self.chars[self.reduce_idx].is_sticky:
             self.chars[self.reduce_idx].val = SPACE
         self.reduce_idx += 1
 
     def is_highlighted(self, idx):
-        return self[idx].sticky or \
+        return self[idx].is_sticky or \
             (self.is_reducing and idx == self.reduce_idx) or \
             (not self.is_reducing and idx >= (len(self) - 1))
 
 class Char:
-    def __init__(self, val, sticky):
+    def __init__(self, val, is_sticky):
         self.val = val
-        self.sticky = sticky
+        self.is_sticky = is_sticky
 
 if __name__ == '__main__':
     bandwidth = int(argv[1]) if len(argv) > 1 else DEFAULT_BANDWIDTH
