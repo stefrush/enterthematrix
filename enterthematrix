@@ -2,7 +2,10 @@
 from sys import argv
 from time import sleep
 from random import choice, random
-from curses import wrapper, curs_set, use_default_colors
+from curses import (
+    wrapper, curs_set, use_default_colors,
+    init_pair, color_pair, COLOR_GREEN
+)
 
 DEFAULT_VELOCITY   = 32
 ANIMATION_INTERVAL = 0.05
@@ -11,6 +14,9 @@ STICKINESS         = 0.64e-3
 MAX_COLS           = 640
 ESCAPE_CHARS       = ('q', 'Q',)
 SPACE              = chr(0x20)
+HIGHLIGHT_COLOR    = 0
+STANDARD_COLOR     = 1
+
 
 class MatrixAnimation:
     def __init__(self, stdscr, velocity, run = True):
@@ -18,6 +24,7 @@ class MatrixAnimation:
         self.stdscr.nodelay(1)
         curs_set(0)
         use_default_colors()
+        init_pair(STANDARD_COLOR, COLOR_GREEN, -1)
 
         self.velocity           = velocity
         self.animation_interval = ANIMATION_INTERVAL
@@ -112,11 +119,13 @@ class MatrixAnimation:
     def render_stream(self, stream, col):
         for idx in range(len(stream)):
             row = idx
-            self.addch(row, col, stream[idx])
+            is_highlighted = stream.is_highlighted(idx)
+            self.addch(row, col, stream[idx].val, is_highlighted)
 
-    def addch(self, row, col, char):
+    def addch(self, row, col, char, is_highlighted = False):
         if self.can_addch(row, col):
-            self.stdscr.addch(row, col, char)
+            color = HIGHLIGHT_COLOR if is_highlighted else STANDARD_COLOR
+            self.stdscr.addch(row, col, char, color_pair(color))
 
     def can_addch(self, row, col):
         return row < self.num_rows - 1 and col < self.num_cols - 1
@@ -126,8 +135,19 @@ class CharStream:
         self.max_size = max_size
         self.stickiness = stickiness
         self.chars = []
+        self.is_reducing = False
         self.is_reduced = False
         self.reduce_idx = 0
+
+    def __len__(self):
+        return len(self.chars)
+
+    def __getitem__(self, idx):
+        return self.chars[idx]
+
+    @property
+    def is_full(self):
+        return len(self) >= self.max_size
 
     def expand(self, char):
         if not self.is_full:
@@ -135,6 +155,7 @@ class CharStream:
             self.chars.append(Char(char, sticky))
 
     def reduce(self):
+        self.is_reducing = True
         if self.reduce_idx >= len(self):
             self.is_reduced = True
             return
@@ -142,15 +163,10 @@ class CharStream:
             self.chars[self.reduce_idx].val = SPACE
         self.reduce_idx += 1
 
-    @property
-    def is_full(self):
-        return len(self) >= self.max_size
-
-    def __len__(self):
-        return len(self.chars)
-
-    def __getitem__(self, idx):
-        return self.chars[idx].val
+    def is_highlighted(self, idx):
+        return self[idx].sticky or \
+            (self.is_reducing and idx == 0) or \
+            (not self.is_reducing and idx >= (len(self) - 1))
 
 class Char:
     def __init__(self, val, sticky):
