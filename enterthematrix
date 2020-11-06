@@ -2,6 +2,7 @@
 
 NAME        = 'enterthematrix'
 DESCRIPTION = 'a classic matrix terminal animation using curses'
+VERSION     = '0.1.0'
 
 # DEFAULTS
 BANDWIDTH          = 8
@@ -242,6 +243,9 @@ class Char:
 def main():
     arg_parser = ArgumentParser(prog=NAME, description=DESCRIPTION, \
         formatter_class=ArgumentDefaultsHelpFormatter)
+
+    arg_parser.add_argument('-v', '--version', \
+        action='version', version=f'{NAME} v{VERSION}')
 
     arg_parser.add_argument('-b', '--bandwidth', \
         help='set the maximum number of character animation streams per text column [0-inf)', \
