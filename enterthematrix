@@ -243,43 +243,43 @@ def main():
         description=DESCRIPTION, formatter_class=ArgumentDefaultsHelpFormatter)
 
     arg_parser.add_argument('-b', '--bandwidth', \
-        help='The maximum number of character animation streams per text column [0-inf)', \
+        help='the maximum number of character animation streams per text column [0-inf)', \
         type=int, metavar='INT', default=BANDWIDTH)
 
     arg_parser.add_argument('-t', '--traffic', \
-        help='The number of character animation streams to create per animation frame [0-inf)', \
+        help='the number of character animation streams to create per animation frame [0-inf)', \
         type=int, metavar='INT', default=TRAFFIC)
 
     arg_parser.add_argument('-n', '--neos-influence', \
-        help='Follow the white rabbit [0-1]', \
+        help='follow the white rabbit [0-1]', \
         type=float, metavar='FLOAT', default=NEOS_INFLUENCE, dest='neos_influence')
 
     arg_parser.add_argument('-a', '--animation-interval', \
-        help='The amount of time in seconds between animation frames [0-inf)', \
+        help='the amount of time in seconds between animation frames [0-inf)', \
         type=float, metavar='FLOAT', default=ANIMATION_INTERVAL, dest='animation_interval')
 
     arg_parser.add_argument('-l', '--limiter', \
-        help='Limits the maximum number of streams by a factor of the limiter value [0-1)', \
+        help='limits the maximum number of streams by a factor of the limiter value [0-1)', \
         type=float, metavar='FLOAT', default=LIMITER)
 
     arg_parser.add_argument('-e', '--exit-keys', \
-        help='A space separated list of keys to initiate exit eg. "q e x"', \
+        help='a space separated list of keys to initiate exit eg. "q e x"', \
         nargs='+', metavar='KEY', default=EXIT_KEYS, dest='exit_keys')
 
     arg_parser.add_argument('-c', '--max-cols', \
-        help='The maximum number of text columns to animate', \
+        help='the maximum number of text columns to animate', \
         type=int, metavar='INT', default=MAX_COLS, dest='max_cols')
 
     arg_parser.add_argument('-d', '--async-damper', \
-        help='Slows async frame animations by a factor of the damper value [0-1)', \
+        help='slows async frame animations by a factor of the damper value [0-1)', \
         type=float, metavar='FLOAT', default=ASYNC_DAMPER, dest='async_damper')
 
     arg_parser.add_argument('--use-async', \
-        help='Turn on async frame rendering in supported environments', \
+        help='turn on async frame rendering in supported environments', \
         action='store_true', default=USE_ASYNC, dest='use_async')
 
     arg_parser.add_argument('--no-use-async', \
-        help='Turn off async frame rendering in supported environments', \
+        help='turn off async frame rendering in supported environments', \
         action='store_false', default=bool(not USE_ASYNC), dest='use_async')
 
     kwargs = vars(arg_parser.parse_args(argv[1:]))
