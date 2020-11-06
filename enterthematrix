@@ -5,7 +5,7 @@ DESCRIPTION = 'a classic matrix terminal animation using curses'
 
 # DEFAULTS
 BANDWIDTH          = 8
-THROUGHPUT            = 8
+THROUGHPUT         = 8
 NEOS_INFLUENCE     = 0.64e-2
 ANIMATION_INTERVAL = 0.03
 LIMITER            = 0
