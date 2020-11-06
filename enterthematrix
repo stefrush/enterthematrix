@@ -1,6 +1,18 @@
 #!/usr/bin/env python3
 #./enterthematrix [BANDWIDTH] [TRAFFIC]
 
+DEFAULT_BANDWIDTH  = 4
+DEFAULT_TRAFFIC    = 16
+NEOS_INFLUENCE     = 0.64e-3
+LIMITER            = 1
+ANIMATION_INTERVAL = 0.025
+ASYNC_DAMPER       = 0.5
+MAX_COLS           = 1280
+EXIT_KEYS          = ('q', 'Q',)
+SPACE              = chr(0x20)
+HIGHLIGHT_COLOR    = 0
+STANDARD_COLOR     = 1
+
 from sys import argv
 from random import choice, random
 from time import sleep
@@ -14,19 +26,8 @@ from curses import (
     COLOR_GREEN,
 )
 
-DEFAULT_BANDWIDTH  = 4
-DEFAULT_TRAFFIC    = 16
-ANIMATION_INTERVAL = 0.025
-FULLNESS           = 1
-STICKINESS         = 0.64e-3
-MAX_COLS           = 1920
-EXIT_KEYS          = ('q', 'Q',)
-SPACE              = chr(0x20)
-HIGHLIGHT_COLOR    = 0
-STANDARD_COLOR     = 1
-
 class MatrixAnimation:
-    def __init__(self, stdscr, bandwidth, traffic):
+    def __init__(self, stdscr, bandwidth, traffic, use_async=True):
         self.stdscr = stdscr
         self.stdscr.nodelay(1)
         curs_set(0)
@@ -35,19 +36,19 @@ class MatrixAnimation:
 
         self.bandwidth          = bandwidth
         self.traffic            = traffic
+        self.neos_influence     = NEOS_INFLUENCE
+        self.limiter            = LIMITER
         self.animation_interval = ANIMATION_INTERVAL
-        self.fullness           = FULLNESS
-        self.stickiness         = STICKINESS
+        self.async_damper       = ASYNC_DAMPER
         self.max_cols           = max(MAX_COLS, self.num_cols)
         self.exit_keys          = EXIT_KEYS
+        self.use_async          = use_async and self.can_use_async()
 
         self.alphabet     = self.get_alphabet()
         self.char_streams = [ [] for _ in range(self.max_cols) ]
         self.num_streams  = 0
-        self.use_async    = self.can_use_asyncio()
 
         if self.use_async:
-            self.animation_interval *= 2
             run(self.run_async())
         else:
             self.run()
@@ -63,7 +64,7 @@ class MatrixAnimation:
             *range(n, n + num_nums),
         ]
 
-    def can_use_asyncio(self):
+    def can_use_async(self):
         try:
             from asyncio import to_thread
         except ImportError:
@@ -80,23 +81,22 @@ class MatrixAnimation:
 
     @property
     def max_streams(self):
-        return int(self.num_cols * self.bandwidth * self.fullness)
+        return int(self.num_cols * self.bandwidth * self.limiter)
 
     async def run_async(self):
         from asyncio import to_thread, sleep as async_sleep, gather
+        self.animation_interval *= (1 / self.async_damper)
         key = None
         while key not in map(ord, self.exit_keys):
-            next_frame = to_thread(self.next_frame)
-            animation_interval = async_sleep(self.animation_interval)
-            await gather(next_frame, animation_interval)
-            self.stdscr.refresh()
+            async_next_frame = to_thread(self.next_frame)
+            async_animation_interval = async_sleep(self.animation_interval)
+            await gather(async_next_frame, async_animation_interval)
             key = self.stdscr.getch()
 
     def run(self):
         key = None
         while key not in map(ord, self.exit_keys):
             self.next_frame()
-            self.stdscr.refresh()
             sleep(self.animation_interval)
             key = self.stdscr.getch()
 
@@ -105,6 +105,7 @@ class MatrixAnimation:
         self.expand_streams()
         self.render_streams()
         self.reduce_streams()
+        self.stdscr.refresh()
 
     def add_streams(self):
         for _ in range(self.traffic):
@@ -115,8 +116,7 @@ class MatrixAnimation:
         col = choice(range(self.num_cols))
         if len(self.char_streams[col]) < self.bandwidth:
             max_size = choice(range(1, self.num_rows + 1))
-            stickiness = self.stickiness
-            stream = CharStream(max_size, stickiness)
+            stream = CharStream(max_size)
             self.char_streams[col].append(stream)
             self.num_streams += 1
 
@@ -127,7 +127,8 @@ class MatrixAnimation:
 
     def expand_stream(self, stream):
         char = chr(choice(self.alphabet))
-        stream.expand(char)
+        is_influenced_by_neo = random() <= self.neos_influence
+        stream.expand(char, is_influenced_by_neo)
 
     def reduce_streams(self):
         for col, col_streams in enumerate(self.char_streams):
@@ -162,7 +163,7 @@ class MatrixAnimation:
             is_highlighted = stream.is_highlighted(idx)
             self.addch(row, col, stream[idx].val, is_highlighted)
 
-    def addch(self, row, col, char, is_highlighted = False):
+    def addch(self, row, col, char, is_highlighted=False):
         if self.can_addch(row, col):
             color = HIGHLIGHT_COLOR if is_highlighted else STANDARD_COLOR
             self.stdscr.addch(row, col, char, color_pair(color))
@@ -171,9 +172,8 @@ class MatrixAnimation:
         return row < self.num_rows - 1 and col < self.num_cols - 1
 
 class CharStream:
-    def __init__(self, max_size, stickiness):
+    def __init__(self, max_size):
         self.max_size = max_size
-        self.stickiness = stickiness
         self.chars = []
         self.is_reducing = False
         self.is_reduced = False
@@ -189,29 +189,28 @@ class CharStream:
     def is_full(self):
         return len(self) >= self.max_size
 
-    def expand(self, char):
-        if not self.is_full:
-            is_sticky = bool(random() <= self.stickiness)
-            self.chars.append(Char(char, is_sticky))
+    def expand(self, char, is_influenced_by_neo=False):
+        if not self.is_full and not self.is_reducing:
+            self.chars.append(Char(char, is_influenced_by_neo))
 
     def reduce(self):
         self.is_reducing = True
         if self.reduce_idx >= len(self):
             self.is_reduced = True
             return
-        if not self.chars[self.reduce_idx].is_sticky:
+        if not self.chars[self.reduce_idx].is_influenced_by_neo:
             self.chars[self.reduce_idx].val = SPACE
         self.reduce_idx += 1
 
     def is_highlighted(self, idx):
-        return self[idx].is_sticky or \
+        return self[idx].is_influenced_by_neo or \
             (self.is_reducing and idx == self.reduce_idx) or \
-            (not self.is_reducing and idx >= (len(self) - 1))
+            (not self.is_reducing and idx == (len(self) - 1))
 
 class Char:
-    def __init__(self, val, is_sticky):
+    def __init__(self, val, is_influenced_by_neo=False):
         self.val = val
-        self.is_sticky = is_sticky
+        self.is_influenced_by_neo = is_influenced_by_neo
 
 if __name__ == '__main__':
     bandwidth = int(argv[1]) if len(argv) > 1 else DEFAULT_BANDWIDTH
