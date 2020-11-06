@@ -7,7 +7,7 @@ DESCRIPTION = 'a classic matrix terminal animation using curses'
 BANDWIDTH          = 4
 TRAFFIC            = 16
 NEOS_INFLUENCE     = 0.64e-3
-ANIMATION_INTERVAL = 0.02
+ANIMATION_INTERVAL = 0.025
 ASYNC_DAMPER       = 0.4
 LIMITER            = 0
 EXIT_KEYS          = ('q', 'Q', 'e', 'E')
@@ -194,7 +194,7 @@ class MatrixAnimation:
             self.stdscr.addch(row, col, char, color_pair(color))
 
     def can_addch(self, row, col):
-        return row < self.num_rows - 1 and col < self.num_cols - 1
+        return row < self.num_rows and col < self.num_cols - 1
 
 class CharStream:
     def __init__(self, max_size):
