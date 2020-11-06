@@ -162,21 +162,16 @@ class MatrixAnimation:
         for col, col_streams in enumerate(self.char_streams):
             for idx, stream in enumerate(col_streams):
                 if stream.is_full:
-                    is_reduced = self.reduce_stream(stream)
-                    if is_reduced:
-                        self.char_streams[col][idx] = None
-                        self.num_streams -= 1
+                    stream.reduce()
             self.remove_reduced_streams(col)
-
-    def reduce_stream(self, stream):
-        stream.reduce()
-        return stream.is_reduced
 
     def remove_reduced_streams(self, col):
         idx = 0
         while idx < len(self.char_streams[col]):
-            if self.char_streams[col][idx] is None:
+            stream = self.char_streams[col][idx]
+            if stream.is_reduced:
                 self.char_streams[col].pop(idx)
+                self.num_streams -= 1
             else:
                 idx += 1
 
