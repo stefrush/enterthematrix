@@ -238,8 +238,8 @@ class Char:
         self.is_influenced_by_neo = is_influenced_by_neo
 
 def main():
-    arg_parser = ArgumentParser(prog=NAME, \
-        description=DESCRIPTION, formatter_class=ArgumentDefaultsHelpFormatter)
+    arg_parser = ArgumentParser(prog=NAME, description=DESCRIPTION, \
+        formatter_class=ArgumentDefaultsHelpFormatter)
 
     arg_parser.add_argument('-b', '--bandwidth', \
         help='set the maximum number of character animation streams per text column [0-inf)', \
