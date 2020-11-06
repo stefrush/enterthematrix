@@ -42,7 +42,7 @@ class MatrixAnimation:
         self.clean_kwargs(kwargs)
 
         self.bandwidth          = kwargs.get('bandwidth', BANDWIDTH)
-        self.throughput            = kwargs.get('throughput', THROUGHPUT)
+        self.throughput         = kwargs.get('throughput', THROUGHPUT)
         self.neos_influence     = kwargs.get('neos_influence', NEOS_INFLUENCE)
         self.animation_interval = kwargs.get('animation_interval', ANIMATION_INTERVAL)
         self.limiter            = kwargs.get('limiter', LIMITER)
@@ -61,11 +61,11 @@ class MatrixAnimation:
             self.run()
 
     def clean_kwargs(self, kwargs):
-        bandwidth = kwargs.get('bandwidth', 0)
-        throughput = kwargs.get('throughput', 0)
+        bandwidth          = kwargs.get('bandwidth', 0)
+        throughput         = kwargs.get('throughput', 0)
         animation_interval = kwargs.get('animation_interval', 0)
-        limiter = kwargs.get('limiter', 0)
-        async_damper = kwargs.get('async_damper', 0)
+        limiter            = kwargs.get('limiter', 0)
+        async_damper       = kwargs.get('async_damper', 0)
 
         if bandwidth < 0:
             del kwargs['bandwidth']
