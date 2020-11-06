@@ -5,13 +5,13 @@ DESCRIPTION = 'a classic matrix terminal animation using curses'
 
 # DEFAULTS
 BANDWIDTH          = 8
-TRAFFIC            = 16
+TRAFFIC            = 8
 NEOS_INFLUENCE     = 0.64e-2
 ANIMATION_INTERVAL = 0.03
 LIMITER            = 0
-EXIT_KEYS          = ('q', 'Q', 'e', 'E')
+EXIT_KEYS          = ('q', 'Q', 'e', 'E',)
 MAX_COLS           = 1280
-ASYNC_DAMPER       = 0.4
+ASYNC_DAMPER       = 0.25
 USE_ASYNC          = True
 
 from sys import argv
@@ -110,13 +110,16 @@ class MatrixAnimation:
 
     async def run_async(self):
         from asyncio import to_thread, sleep as async_sleep, gather
-        self.animation_interval *= (1 / (1 - self.async_damper))
+        self.dampen_async_animation()
         key = None
         while key not in map(ord, self.exit_keys):
             async_next_frame = to_thread(self.next_frame)
             async_animation_interval = async_sleep(self.animation_interval)
             await gather(async_next_frame, async_animation_interval)
             key = self.stdscr.getch()
+
+    def dampen_async_animation(self):
+        self.animation_interval *= (1 / (1 - self.async_damper))
 
     def run(self):
         key = None
