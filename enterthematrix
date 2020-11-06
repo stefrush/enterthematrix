@@ -5,7 +5,7 @@ DESCRIPTION = 'a classic matrix terminal animation using curses'
 
 # DEFAULTS
 BANDWIDTH          = 8
-TRAFFIC            = 8
+THROUGHPUT            = 8
 NEOS_INFLUENCE     = 0.64e-2
 ANIMATION_INTERVAL = 0.03
 LIMITER            = 0
@@ -42,7 +42,7 @@ class MatrixAnimation:
         self.clean_kwargs(kwargs)
 
         self.bandwidth          = kwargs.get('bandwidth', BANDWIDTH)
-        self.traffic            = kwargs.get('traffic', TRAFFIC)
+        self.throughput            = kwargs.get('throughput', THROUGHPUT)
         self.neos_influence     = kwargs.get('neos_influence', NEOS_INFLUENCE)
         self.animation_interval = kwargs.get('animation_interval', ANIMATION_INTERVAL)
         self.limiter            = kwargs.get('limiter', LIMITER)
@@ -62,15 +62,15 @@ class MatrixAnimation:
 
     def clean_kwargs(self, kwargs):
         bandwidth = kwargs.get('bandwidth', 0)
-        traffic = kwargs.get('traffic', 0)
+        throughput = kwargs.get('throughput', 0)
         animation_interval = kwargs.get('animation_interval', 0)
         limiter = kwargs.get('limiter', 0)
         async_damper = kwargs.get('async_damper', 0)
 
         if bandwidth < 0:
             del kwargs['bandwidth']
-        if traffic < 0:
-            del kwargs['traffic']
+        if throughput < 0:
+            del kwargs['throughput']
         if animation_interval < 0:
             del kwargs['animation_interval']
         if limiter < 0 or limiter >= 1:
@@ -136,7 +136,7 @@ class MatrixAnimation:
         self.stdscr.refresh()
 
     def add_streams(self):
-        for _ in range(self.traffic):
+        for _ in range(self.throughput):
             if self.num_streams < self.max_streams:
                 self.add_stream()
             else:
@@ -247,9 +247,9 @@ def main():
         help='set the maximum number of character animation streams per text column [0-inf)', \
         type=int, metavar='INT', default=BANDWIDTH)
 
-    arg_parser.add_argument('-t', '--traffic', \
+    arg_parser.add_argument('-t', '--throughput', \
         help='set the number of character animation streams to create per animation frame [0-inf)', \
-        type=int, metavar='INT', default=TRAFFIC)
+        type=int, metavar='INT', default=THROUGHPUT)
 
     arg_parser.add_argument('-n', '--neos-influence', \
         help='follow the white rabbit [0-1]', \
