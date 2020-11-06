@@ -8,10 +8,10 @@ BANDWIDTH          = 4
 TRAFFIC            = 16
 NEOS_INFLUENCE     = 0.64e-3
 ANIMATION_INTERVAL = 0.02
-LIMITER            = 1
+ASYNC_DAMPER       = 0.4
+LIMITER            = 0
 EXIT_KEYS          = ('q', 'Q', 'e', 'E')
 MAX_COLS           = 1280
-ASYNC_DAMPER       = 0.4
 USE_ASYNC          = True
 
 from sys import argv
@@ -39,14 +39,16 @@ class MatrixAnimation:
         use_default_colors()
         init_pair(PAIR_STANDARD, COLOR_GREEN, -1)
 
+        self.clean_kwargs(kwargs)
+
         self.bandwidth          = kwargs.get('bandwidth', BANDWIDTH)
         self.traffic            = kwargs.get('traffic', TRAFFIC)
         self.neos_influence     = kwargs.get('neos_influence', NEOS_INFLUENCE)
         self.animation_interval = kwargs.get('animation_interval', ANIMATION_INTERVAL)
+        self.async_damper       = kwargs.get('async_damper', ASYNC_DAMPER)
         self.limiter            = kwargs.get('limiter', LIMITER)
         self.exit_keys          = kwargs.get('exit_keys', EXIT_KEYS)
         self.max_cols           = max(kwargs.get('max_cols', MAX_COLS), self.num_cols)
-        self.async_damper       = kwargs.get('async_damper', ASYNC_DAMPER)
         self.use_async          = kwargs.get('use_async', USE_ASYNC) and self.can_use_async()
 
         self.alphabet     = self.get_alphabet()
@@ -57,6 +59,31 @@ class MatrixAnimation:
             run(self.run_async())
         else:
             self.run()
+
+    def clean_kwargs(self, kwargs):
+        bandwidth = kwargs.get('bandwidth', 0)
+        traffic = kwargs.get('traffic', 0)
+        animation_interval = kwargs.get('animation_interval', 0)
+        async_damper = kwargs.get('async_damper', 0)
+        limiter = kwargs.get('limiter', 0)
+
+        if bandwidth < 0:
+            del kwargs['bandwidth']
+        if traffic < 0:
+            del kwargs['traffic']
+        if animation_interval < 0:
+            del kwargs['animation_interval']
+        if async_damper < 0 or async_damper >= 1:
+            del kwargs['async_damper']
+        if limiter < 0 or limiter >= 1:
+            del kwargs['limiter']
+
+    def can_use_async(self):
+        try:
+            from asyncio import to_thread
+        except ImportError:
+            return False
+        return True
 
     def get_alphabet(self):
         k, num_katas  = 0xff66,   56
@@ -69,13 +96,6 @@ class MatrixAnimation:
             *range(n, n + num_nums),
         ]
 
-    def can_use_async(self):
-        try:
-            from asyncio import to_thread
-        except ImportError:
-            return False
-        return True
-
     @property
     def num_rows(self):
         return self.stdscr.getmaxyx()[0]
@@ -86,7 +106,7 @@ class MatrixAnimation:
 
     @property
     def max_streams(self):
-        return int(self.num_cols * self.bandwidth * self.limiter)
+        return int(self.num_cols * self.bandwidth * (1 - self.limiter))
 
     async def run_async(self):
         from asyncio import to_thread, sleep as async_sleep, gather
@@ -218,26 +238,30 @@ class Char:
         self.is_influenced_by_neo = is_influenced_by_neo
 
 def main():
-    arg_parser = ArgumentParser(description=DESCRIPTION)
+    arg_parser = ArgumentParser(prog=NAME, description=DESCRIPTION)
 
     arg_parser.add_argument('-b', '--bandwidth', \
-        help='The maximum number of character animation streams per text column', \
+        help='The maximum number of character animation streams per text column [0-inf)', \
         type=int, metavar='INT', default=BANDWIDTH)
 
     arg_parser.add_argument('-t', '--traffic', \
-        help='The number of character animation streams to create per animation frame', \
+        help='The number of character animation streams to create per animation frame [0-inf)', \
         type=int, metavar='INT', default=TRAFFIC)
 
     arg_parser.add_argument('-n', '--neos-influence', \
-        help='Follow the white rabbit (0-1)', \
+        help='Follow the white rabbit [0-1]', \
         type=float, metavar='FLOAT', default=NEOS_INFLUENCE, dest='neos_influence')
 
     arg_parser.add_argument('-a', '--animation-interval', \
-        help='The amount of time in seconds between animation frames (>0)', \
+        help='The amount of time in seconds between animation frames [0-inf)', \
         type=float, metavar='FLOAT', default=ANIMATION_INTERVAL, dest='animation_interval')
 
+    arg_parser.add_argument('-d', '--async-damper', \
+        help='Slows the animation by a factor of the damper value when using async [0-1)', \
+        type=float, metavar='FLOAT', default=ASYNC_DAMPER, dest='async_damper')
+
     arg_parser.add_argument('-l', '--limiter', \
-        help='Limits the maximum number of streams by a factor of the limiter value (0-1)', \
+        help='Limits the maximum number of streams by a factor of the limiter value [0-1)', \
         type=float, metavar='FLOAT', default=LIMITER)
 
     arg_parser.add_argument('-e', '--exit-keys', \
@@ -247,10 +271,6 @@ def main():
     arg_parser.add_argument('-c', '--max-cols', \
         help='The maximum number of text columns to animate', \
         type=int, metavar='INT', default=MAX_COLS, dest='max_cols')
-
-    arg_parser.add_argument('-d', '--async-damper', \
-        help='Slows the animation by a factor of the damper value when using async (0-1)', \
-        type=float, metavar='FLOAT', default=ASYNC_DAMPER, dest='async_damper')
 
     arg_parser.add_argument('--no-use-async', \
         help='Turn off async frame rendering in supported environments', \
