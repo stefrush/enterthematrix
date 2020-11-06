@@ -227,8 +227,9 @@ class CharStream:
         if self.reduce_idx >= len(self):
             self.is_reduced = True
             return
-        if not self.chars[self.reduce_idx].is_influenced_by_neo:
-            self.chars[self.reduce_idx].val = SPACE
+        next_char = self.chars[self.reduce_idx]
+        if not next_char.is_influenced_by_neo:
+            next_char.val = SPACE
         self.reduce_idx += 1
 
     def is_highlighted(self, idx):
