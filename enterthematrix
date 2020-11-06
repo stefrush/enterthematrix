@@ -90,11 +90,11 @@ class MatrixAnimation:
         a, num_alphas = ord('A'), 26
         n, num_nums   = ord('0'), 10
 
-        return [
+        return (
             *range(k, k + num_katas),
             *range(a, a + num_alphas),
             *range(n, n + num_nums),
-        ]
+        )
 
     @property
     def num_rows(self):
