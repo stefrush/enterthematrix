@@ -139,6 +139,8 @@ class MatrixAnimation:
         for _ in range(self.traffic):
             if self.num_streams < self.max_streams:
                 self.add_stream()
+            else:
+                break
 
     def add_stream(self):
         col = choice(range(self.num_cols))
