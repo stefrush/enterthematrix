@@ -13,7 +13,7 @@ a classic matrix terminal animation using curses
 
 ```sh
 #!/usr/bin/env sh
-curl https://raw.githubusercontent.com/stefrush/enterthematrix/blob/master/enterthematrix -o /usr/local/bin
+curl https://raw.githubusercontent.com/stefrush/enterthematrix/master/enterthematrix -o /usr/local/bin/enterthematrix
 chmod +x /usr/local/bin/enterthematrix
 ```
 
