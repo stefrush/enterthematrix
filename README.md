@@ -9,7 +9,7 @@ a classic matrix terminal animation using curses
 ### Dependencies
 
 * python3
-* font with Japanese Katakana support (unicode `0xff66-0xff9d`)
+* font with Japanese Katakana support (unicode `0xff66`-`0xff9d`)
 
 ### Installation
 
@@ -17,6 +17,7 @@ a classic matrix terminal animation using curses
 #!/usr/bin/env sh
 curl https://raw.githubusercontent.com/stefrush/enterthematrix/master/enterthematrix -o /usr/local/bin/enterthematrix
 chmod +x /usr/local/bin/enterthematrix
+enterthematrix --version
 ```
 
 ### Usage
@@ -39,7 +40,7 @@ optional arguments:
                         limit the maximum number of streams by a factor of the limiter value [0-1) (default: 0)
   -e KEY [KEY ...], --exit-keys KEY [KEY ...]
                         set the keys to initiate exit; should be space separated list eg. "q e x" (default: ('q', 'Q', 'e', 'E'))
-  -c INT, --max-cols INT
+  -m INT, --max-cols INT
                         set the maximum number of text columns to animate (default: 1280)
   -d FLOAT, --async-damper FLOAT
                         slow async frame animations by a factor of the damper value [0-1) (default: 0.25)

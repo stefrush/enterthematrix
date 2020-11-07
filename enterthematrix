@@ -271,7 +271,7 @@ def main():
         help='set the keys to initiate exit; should be space separated list eg. "q e x"', \
         nargs='+', metavar='KEY', default=EXIT_KEYS, dest='exit_keys')
 
-    arg_parser.add_argument('-c', '--max-cols', \
+    arg_parser.add_argument('-m', '--max-cols', \
         help='set the maximum number of text columns to animate', \
         type=int, metavar='INT', default=MAX_COLS, dest='max_cols')
 
