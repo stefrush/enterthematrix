@@ -2,7 +2,7 @@
 
 NAME        = 'enterthematrix'
 DESCRIPTION = 'a classic matrix terminal animation using curses'
-VERSION     = '0.1.0'
+VERSION     = '1.0.0'
 
 # DEFAULTS
 BANDWIDTH          = 8
