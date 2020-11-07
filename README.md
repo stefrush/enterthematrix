@@ -4,12 +4,14 @@ a classic matrix terminal animation using curses
 
 <img src="https://enterthematrix.space/img/demo.gif" alt="demo gif">
 
-## Dependencies
+## Documentation
+
+### Dependencies
 
 * python3
 * font with Japanese Katakana support (unicode `0xff66-0xff9d`)
 
-## Install
+### Install
 
 ```sh
 #!/usr/bin/env sh
@@ -17,7 +19,7 @@ curl https://raw.githubusercontent.com/stefrush/enterthematrix/master/enterthema
 chmod +x /usr/local/bin/enterthematrix
 ```
 
-## Usage
+### Usage
 
 ```
 usage: enterthematrix [-h] [-v] [-b INT] [-t INT] [-n FLOAT] [-a FLOAT] [-l FLOAT] [-e KEY [KEY ...]] [-c INT] [-d FLOAT] [--use-async] [--no-use-async]
@@ -45,7 +47,7 @@ optional arguments:
   --no-use-async        turn off async frame rendering in supported environments (default: False)
 ```
 
-## License
+### License
 
 [MIT](https://github.com/stefrush/enterthematrix/blob/master/LICENSE)
 
