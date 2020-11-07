@@ -11,7 +11,7 @@ a classic matrix terminal animation using curses
 * python3
 * font with Japanese Katakana support (unicode `0xff66-0xff9d`)
 
-### Install
+### Installation
 
 ```sh
 #!/usr/bin/env sh
