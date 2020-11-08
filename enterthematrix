@@ -146,7 +146,7 @@ class MatrixAnimation:
         return len(self.char_streams[col]) < self.bandwidth
 
     def add_stream(self, col):
-        size = int(choice(range(1, self.num_rows + 1)))
+        size = choice(range(1, self.num_rows + 1))
         size = int(size * self.stream_size_mult)
         stream = CharStream(size)
         self.char_streams[col].append(stream)
