@@ -2,21 +2,23 @@
 
 NAME        = 'enterthematrix'
 DESCRIPTION = 'a classic matrix terminal animation using curses'
-VERSION     = '1.0.0'
+VERSION     = '2.0.0'
 
 # DEFAULTS
-BANDWIDTH          = 8
-THROUGHPUT         = 8
+BANDWIDTH          = 2
+THROUGHPUT         = 4
 NEOS_INFLUENCE     = 0.64e-2
-ANIMATION_INTERVAL = 0.03
+ANIMATION_INTERVAL = 0.0425
 LIMITER            = 0
-EXIT_KEYS          = ('q', 'Q', 'e', 'E',)
 MAX_COLS           = 1280
-ASYNC_DAMPER       = 0.25
+EXIT_KEYS          = ('q', 'Q', chr(0x1b))
 USE_ASYNC          = True
+DEBUG              = False
+STREAM_SIZE_MULT   = 0.8
 
 from sys import argv
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
+from collections import deque
 from random import choice, random
 from time import sleep
 from asyncio import run
@@ -27,10 +29,11 @@ from curses import (
     init_pair,
     color_pair,
     COLOR_GREEN,
+    A_BOLD,
 )
-PAIR_HIGHLIGHT = 0
-PAIR_STANDARD  = 1
-SPACE          = chr(0x20)
+PAIR_HIGHLIGHTED = 0
+PAIR_NORMAL      = 1
+SPACE            = chr(0x20)
 
 class MatrixAnimation:
     def __init__(self, stdscr, **kwargs):
@@ -38,7 +41,9 @@ class MatrixAnimation:
         self.stdscr.nodelay(1)
         curs_set(0)
         use_default_colors()
-        init_pair(PAIR_STANDARD, COLOR_GREEN, -1)
+        init_pair(PAIR_NORMAL, COLOR_GREEN, -1)
+        self.pair_highlighted = color_pair(PAIR_HIGHLIGHTED) | A_BOLD
+        self.pair_normal    = color_pair(PAIR_NORMAL)
 
         self.clean_kwargs(kwargs)
 
@@ -47,13 +52,13 @@ class MatrixAnimation:
         self.neos_influence     = kwargs.get('neos_influence', NEOS_INFLUENCE)
         self.animation_interval = kwargs.get('animation_interval', ANIMATION_INTERVAL)
         self.limiter            = kwargs.get('limiter', LIMITER)
+        self.max_cols           = kwargs.get('max_cols', MAX_COLS)
         self.exit_keys          = kwargs.get('exit_keys', EXIT_KEYS)
-        self.max_cols           = max(kwargs.get('max_cols', MAX_COLS), self.num_cols)
-        self.async_damper       = kwargs.get('async_damper', ASYNC_DAMPER)
         self.use_async          = kwargs.get('use_async', USE_ASYNC) and self.can_use_async()
+        self.debug              = kwargs.get('debug', DEBUG)
+        self.stream_size_mult   = kwargs.get('stream_size_mult', STREAM_SIZE_MULT)
 
-        self.alphabet     = self.get_alphabet()
-        self.char_streams = [ [] for _ in range(self.max_cols) ]
+        self.char_streams = [ deque() for _ in range(self.max_cols) ]
         self.num_streams  = 0
 
         if self.use_async:
@@ -66,7 +71,8 @@ class MatrixAnimation:
         throughput         = kwargs.get('throughput', 0)
         animation_interval = kwargs.get('animation_interval', 0)
         limiter            = kwargs.get('limiter', 0)
-        async_damper       = kwargs.get('async_damper', 0)
+        max_cols           = kwargs.get('max_cols', 1)
+        stream_size_mult   = kwargs.get('stream_size_mult', 0)
 
         if bandwidth < 0:
             del kwargs['bandwidth']
@@ -76,8 +82,10 @@ class MatrixAnimation:
             del kwargs['animation_interval']
         if limiter < 0 or limiter >= 1:
             del kwargs['limiter']
-        if async_damper < 0 or async_damper >= 1:
-            del kwargs['async_damper']
+        if max_cols < 1:
+            del kwargs['max_cols']
+        if stream_size_mult < 0:
+            del kwargs['stream_size_mult']
 
     def can_use_async(self):
         try:
@@ -86,16 +94,9 @@ class MatrixAnimation:
             return False
         return True
 
-    def get_alphabet(self):
-        k, num_katas  = 0xff66,   56
-        a, num_alphas = ord('A'), 26
-        n, num_nums   = ord('0'), 10
-
-        return (
-            *range(k, k + num_katas),
-            *range(a, a + num_alphas),
-            *range(n, n + num_nums),
-        )
+    @property
+    def max_streams(self):
+        return int(min(self.max_cols, self.num_cols) * self.bandwidth * (1 - self.limiter))
 
     @property
     def num_rows(self):
@@ -105,22 +106,14 @@ class MatrixAnimation:
     def num_cols(self):
         return self.stdscr.getmaxyx()[1]
 
-    @property
-    def max_streams(self):
-        return int(self.num_cols * self.bandwidth * (1 - self.limiter))
-
     async def run_async(self):
         from asyncio import to_thread, sleep as async_sleep, gather
-        self.dampen_async_animation()
         key = None
         while key not in map(ord, self.exit_keys):
             async_next_frame = to_thread(self.next_frame)
             async_animation_interval = async_sleep(self.animation_interval)
             await gather(async_next_frame, async_animation_interval)
             key = self.stdscr.getch()
-
-    def dampen_async_animation(self):
-        self.animation_interval *= (1 / (1 - self.async_damper))
 
     def run(self):
         key = None
@@ -131,52 +124,38 @@ class MatrixAnimation:
 
     def next_frame(self):
         self.add_streams()
-        self.expand_streams()
+        self.step_streams()
         self.render_streams()
-        self.reduce_streams()
+        self.remove_streams()
+        if self.debug:
+            self.render_debug_message()
         self.stdscr.refresh()
 
     def add_streams(self):
         for _ in range(self.throughput):
-            if self.num_streams < self.max_streams:
-                self.add_stream()
-            else:
+            if self.at_max_throughput():
                 break
+            col = choice(range(min(self.max_cols, self.num_cols)))
+            if self.can_add_stream(col):
+                self.add_stream(col)
 
-    def add_stream(self):
-        col = choice(range(self.num_cols))
-        if len(self.char_streams[col]) < self.bandwidth:
-            max_size = choice(range(1, self.num_rows + 1))
-            stream = CharStream(max_size)
-            self.char_streams[col].append(stream)
-            self.num_streams += 1
+    def at_max_throughput(self):
+        return self.num_streams >= self.max_streams
 
-    def expand_streams(self):
+    def can_add_stream(self, col):
+        return len(self.char_streams[col]) < self.bandwidth
+
+    def add_stream(self, col):
+        size = choice(range(1, self.num_rows + 1))
+        size = int(size * self.stream_size_mult)
+        stream = CharStream(size)
+        self.char_streams[col].append(stream)
+        self.num_streams += 1
+
+    def step_streams(self):
         for col_streams in self.char_streams:
             for stream in col_streams:
-                self.expand_stream(stream)
-
-    def expand_stream(self, stream):
-        char = chr(choice(self.alphabet))
-        is_influenced_by_neo = random() <= self.neos_influence
-        stream.expand(char, is_influenced_by_neo)
-
-    def reduce_streams(self):
-        for col, col_streams in enumerate(self.char_streams):
-            for idx, stream in enumerate(col_streams):
-                if stream.is_full:
-                    stream.reduce()
-            self.remove_reduced_streams(col)
-
-    def remove_reduced_streams(self, col):
-        idx = 0
-        while idx < len(self.char_streams[col]):
-            stream = self.char_streams[col][idx]
-            if stream.is_reduced:
-                self.char_streams[col].pop(idx)
-                self.num_streams -= 1
-            else:
-                idx += 1
+                stream.step()
 
     def render_streams(self):
         for col, col_streams in enumerate(self.char_streams):
@@ -184,61 +163,107 @@ class MatrixAnimation:
                 self.render_stream(stream, col)
 
     def render_stream(self, stream, col):
-        start_idx = stream.reduce_idx - 1 if stream.is_reducing else 0
-        for idx in range(start_idx, len(stream)):
-            row = idx
-            is_highlighted = stream.is_highlighted(idx)
-            self.addch(row, col, stream[idx].val, is_highlighted)
+        if self.can_render_tail(stream):
+            self.render_tail(stream, col)
+        if self.can_render_before_head(stream):
+            self.render_before_head(stream, col)
+        if self.can_render_head(stream):
+            self.render_head(stream, col)
+
+    def can_render_head(self, stream):
+        return stream.head_row < self.num_rows
+
+    def render_head(self, stream, col):
+        is_influenced_by_neo = random() <= self.neos_influence
+        char = stream.next_char(is_influenced_by_neo)
+        self.addch(stream.head_row, col, char, True)
+
+    def can_render_before_head(self, stream):
+        return stream.head_row - 1 >= 0 and \
+            stream.head_row - 1 < self.num_rows and \
+            not stream.latest_is_influenced
+
+    def render_before_head(self, stream, col):
+        self.addch(stream.head_row - 1, col, stream.latest_char)
+
+    def can_render_tail(self, stream):
+        return stream.tail_row >= 0 and not stream.tail_is_influenced()
+
+    def render_tail(self, stream, col):
+        self.addch(stream.tail_row, col, SPACE)
 
     def addch(self, row, col, char, is_highlighted=False):
         if self.can_addch(row, col):
-            color = PAIR_HIGHLIGHT if is_highlighted else PAIR_STANDARD
-            self.stdscr.addch(row, col, char, color_pair(color))
+            color = self.pair_highlighted if is_highlighted else self.pair_normal
+            self.stdscr.addch(row, col, char, color)
 
     def can_addch(self, row, col):
         return row < self.num_rows and col < self.num_cols - 1
 
-class CharStream:
-    def __init__(self, max_size):
-        self.max_size = max_size
-        self.chars = []
-        self.is_reducing = False
-        self.is_reduced = False
-        self.reduce_idx = 0
+    def remove_streams(self):
+        for col_streams in self.char_streams:
+            if self.should_remove_stream(col_streams):
+                self.remove_oldest_stream(col_streams)
 
-    def __len__(self):
-        return len(self.chars)
+    def should_remove_stream(self, col_streams):
+        return col_streams and col_streams[0].tail_row >= (self.num_rows - 1)
 
-    def __getitem__(self, idx):
-        return self.chars[idx]
+    def remove_oldest_stream(self, col_streams):
+        col_streams.popleft()
+        self.num_streams -= 1
+
+    def render_debug_message(self):
+        row = self.num_rows - 1
+        for idx, char in enumerate(self.debug_message):
+            col = idx
+            self.addch(row, col, char, True)
 
     @property
-    def is_full(self):
-        return len(self) >= self.max_size
+    def debug_message(self):
+        return ' | '.join((
+            f'STR: {self.num_streams} / {self.max_streams}',
+            f'DIM: {self.num_cols} x {self.num_rows}',
+            f'B: {self.bandwidth}',
+            f'T: {self.throughput}',
+            f'N: {self.neos_influence}',
+            f'A: {self.animation_interval}',
+            f'L: {self.limiter}',
+        ))
 
-    def expand(self, char, is_influenced_by_neo=False):
-        if not self.is_full and not self.is_reducing:
-            self.chars.append(Char(char, is_influenced_by_neo))
+FIRST_KATA,  NUM_KATAS  = 0xff66,   56
+FIRST_ALPHA, NUM_ALPHAS = ord('A'), 26
+FIRST_NUM,   NUM_NUMS   = ord('0'), 10
+ALPHABET = (
+    *range(FIRST_KATA, FIRST_KATA + NUM_KATAS),
+    *range(FIRST_ALPHA, FIRST_ALPHA + NUM_ALPHAS),
+    *range(FIRST_NUM, FIRST_NUM + NUM_NUMS),
+)
 
-    def reduce(self):
-        self.is_reducing = True
-        if self.reduce_idx >= len(self):
-            self.is_reduced = True
-            return
-        next_char = self.chars[self.reduce_idx]
-        if not next_char.is_influenced_by_neo:
-            next_char.val = SPACE
-        self.reduce_idx += 1
+class CharStream:
+    def __init__(self, size):
+        self.size                 = size
+        self.head_row             = -1
+        self.tail_row             = self.head_row - self.size
+        self.latest_char          = None
+        self.latest_is_influenced = False
+        self.influenced_chars     = {}
 
-    def is_highlighted(self, idx):
-        return self[idx].is_influenced_by_neo or \
-            (self.is_reducing and idx == self.reduce_idx) or \
-            (not self.is_reducing and idx == (len(self) - 1))
+    def step(self):
+        self.head_row += 1
+        self.tail_row += 1
 
-class Char:
-    def __init__(self, val, is_influenced_by_neo=False):
-        self.val = val
-        self.is_influenced_by_neo = is_influenced_by_neo
+    def next_char(self, is_influenced_by_neo=False):
+        if is_influenced_by_neo:
+            self.influenced_chars[self.head_row] = True
+        self.latest_is_influenced = is_influenced_by_neo
+        self.latest_char = chr(choice(ALPHABET))
+        return self.latest_char
+
+    def tail_is_influenced(self):
+        if self.tail_row in self.influenced_chars:
+            del self.influenced_chars[self.tail_row]
+            return True
+        return False
 
 def main():
     arg_parser = ArgumentParser(prog=NAME, description=DESCRIPTION, \
@@ -267,17 +292,13 @@ def main():
         help='limit the maximum number of streams by a factor of the limiter value [0-1)', \
         type=float, metavar='FLOAT', default=LIMITER)
 
-    arg_parser.add_argument('-e', '--exit-keys', \
-        help='set the keys to initiate exit; should be space separated list eg. "q e x"', \
-        nargs='+', metavar='KEY', default=EXIT_KEYS, dest='exit_keys')
-
-    arg_parser.add_argument('-c', '--max-cols', \
-        help='set the maximum number of text columns to animate', \
+    arg_parser.add_argument('-m', '--max-cols', \
+        help='set the maximum number of text columns to animate [1-inf)', \
         type=int, metavar='INT', default=MAX_COLS, dest='max_cols')
 
-    arg_parser.add_argument('-d', '--async-damper', \
-        help='slow async frame animations by a factor of the damper value [0-1)', \
-        type=float, metavar='FLOAT', default=ASYNC_DAMPER, dest='async_damper')
+    arg_parser.add_argument('-e', '--exit-keys', \
+        help='set the keys to initiate exit; should be a space separated list eg. "e E"', \
+        nargs='+', metavar='KEY', default=EXIT_KEYS, dest='exit_keys')
 
     arg_parser.add_argument('--use-async', \
         help='turn on async frame rendering in supported environments', \
@@ -286,6 +307,10 @@ def main():
     arg_parser.add_argument('--no-use-async', \
         help='turn off async frame rendering in supported environments', \
         action='store_false', default=bool(not USE_ASYNC), dest='use_async')
+
+    arg_parser.add_argument('-d', '--debug', \
+        help='show program runtime information during the animation', \
+        action='store_true', default=DEBUG)
 
     kwargs = vars(arg_parser.parse_args(argv[1:]))
     wrapper(MatrixAnimation, **kwargs)
