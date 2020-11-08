@@ -41,7 +41,7 @@ optional arguments:
   -m INT, --max-cols INT
                         set the maximum number of text columns to animate [1-inf) (default: 1280)
   -e KEY [KEY ...], --exit-keys KEY [KEY ...]
-                        set the keys to initiate exit; should be a space separated list eg. "e E" (default: ('q', 'Q'))
+                        set the keys to initiate exit; should be a space separated list eg. "e E" (default: ('q', 'Q', '\x1b'))
   --use-async           turn on async frame rendering in supported environments (default: True)
   --no-use-async        turn off async frame rendering in supported environments (default: False)
   -d, --debug           show program runtime information during the animation (default: False)
