@@ -202,9 +202,15 @@ class MatrixAnimation:
 
     def remove_streams(self):
         for col_streams in self.char_streams:
-            if col_streams and col_streams[0].tail_row >= (self.num_rows - 1):
-                col_streams.popleft()
-                self.num_streams -= 1
+            if self.should_remove_stream(col_streams):
+                self.remove_oldest_stream(col_streams)
+
+    def should_remove_stream(self, col_streams):
+        return col_streams and col_streams[0].tail_row >= (self.num_rows - 1)
+
+    def remove_oldest_stream(self, col_streams):
+        col_streams.popleft()
+        self.num_streams -= 1
 
     def render_debug_message(self):
         row = self.num_rows - 1
