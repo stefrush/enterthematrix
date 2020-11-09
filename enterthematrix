@@ -469,7 +469,7 @@ def main():
         for key, command, in KEY_COMMANDS.items():
             print(f'{key} => {command}')
 
-    def run_benchmark(overrides):
+    def run_benchmark():
         from datetime import datetime
         benchmark_start = datetime.now()
         wrapper(MatrixAnimation, **BENCHMARK_CONFIG)
@@ -481,7 +481,7 @@ def main():
     if kwargs.get('commands'):
         print_commands()
     elif kwargs.get('benchmark'):
-        run_benchmark(kwargs)
+        run_benchmark()
     else:
         wrapper(MatrixAnimation, **kwargs)
 
