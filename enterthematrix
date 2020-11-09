@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 NAME        = 'enterthematrix'
-DESCRIPTION = 'a classic matrix terminal animation using curses'
+DESCRIPTION = 'a classic matrix rain animation and benchmark tool'
 VERSION     = '2.1.0'
 
 # DEFAULTS
@@ -12,10 +12,13 @@ NEOS_INFLUENCE     = 0.004
 ANIMATION_INTERVAL = 0.042
 LIMITER            = 0
 MAX_COLS           = 1280
+MAX_ROWS           = float('inf')
+MAX_FRAMES         = float('inf')
 EXIT_KEYS          = ('q', 'Q', chr(0x1b))
 USE_ASYNC          = True
 MIN_STREAM_SIZE    = 2
 STREAM_SIZE_MULT   = 0.8
+COMMANDS_ENABLED   = True
 KEY_COMMANDS       = {
     'd': 'toggle_debug',
     'p': 'toggle_paused',
@@ -31,6 +34,18 @@ KEY_COMMANDS       = {
     'A': 'decrease_animation_interval',
     'l': 'increase_limiter',
     'L': 'decrease_limiter',
+}
+BENCHMARK_CONFIG   = {
+    'max_frames':         2 ** 12,
+    'debug':              True,
+    'bandwidth':          8,
+    'throughput':         16,
+    'neos_influence':     0.04,
+    'animation_interval': 0,
+    'max_cols':           80,
+    'max_rows':           40,
+    'use_async':          False,
+    'commands_enabled':   False,
 }
 
 from sys import argv
@@ -70,10 +85,13 @@ class MatrixAnimation:
         self.animation_interval = kwargs.get('animation_interval', ANIMATION_INTERVAL)
         self.limiter            = kwargs.get('limiter', LIMITER)
         self.max_cols           = kwargs.get('max_cols', MAX_COLS)
+        self.max_rows           = kwargs.get('max_rows', MAX_ROWS)
+        self.max_frames         = kwargs.get('max_frames', MAX_FRAMES)
         self.exit_keys          = kwargs.get('exit_keys', EXIT_KEYS)
         self.use_async          = kwargs.get('use_async', USE_ASYNC) and self.can_use_async()
         self.min_stream_size    = kwargs.get('min_stream_size', MIN_STREAM_SIZE)
         self.stream_size_mult   = kwargs.get('stream_size_mult', STREAM_SIZE_MULT)
+        self.commands_enabled   = kwargs.get('commands_enabled', COMMANDS_ENABLED)
         self.key_commands       = kwargs.get('key_commands', KEY_COMMANDS)
 
         self.bandwidth_increment          = 1
@@ -105,6 +123,7 @@ class MatrixAnimation:
 
         self.char_streams = [ deque() for _ in range(self.max_cols) ]
         self.num_streams  = 0
+        self.num_frames   = 0
         self.is_paused    = False
         self.is_stepping  = False
 
@@ -146,17 +165,17 @@ class MatrixAnimation:
         return int(min(self.max_cols, self.num_cols) * self.bandwidth * (1 - self.limiter))
 
     @property
-    def num_rows(self):
-        return self.stdscr.getmaxyx()[0]
+    def num_cols(self):
+        return min(self.stdscr.getmaxyx()[1], self.max_cols)
 
     @property
-    def num_cols(self):
-        return self.stdscr.getmaxyx()[1]
+    def num_rows(self):
+        return min(self.stdscr.getmaxyx()[0], self.max_rows)
 
     async def run_async(self):
         from asyncio import to_thread, sleep as async_sleep, gather
-        key = None
-        while key not in map(ord, self.exit_keys):
+        key = -1
+        while self.can_run(key):
             async_next_frame = to_thread(self.next_frame)
             async_animation_interval = async_sleep(self.animation_interval)
             await gather(async_next_frame, async_animation_interval)
@@ -164,14 +183,24 @@ class MatrixAnimation:
             self.handle_keypress(key)
 
     def run(self):
-        key = None
-        while key not in map(ord, self.exit_keys):
+        key = -1
+        while self.can_run(key):
             self.next_frame()
             sleep(self.animation_interval)
             key = self.stdscr.getch()
             self.handle_keypress(key)
 
+    def can_run(self, key):
+        return not self.is_exit_key(key) and not self.at_max_frames()
+
+    def is_exit_key(self, key):
+        return key >= 0 and chr(key) in self.exit_keys
+
+    def at_max_frames(self):
+        return self.num_frames >= self.max_frames
+
     def next_frame(self):
+        self.num_frames += 1
         if self.is_paused and not self.is_stepping:
             return
         self.add_streams()
@@ -186,7 +215,7 @@ class MatrixAnimation:
         for _ in range(self.throughput):
             if self.at_max_throughput():
                 break
-            col = choice(range(min(self.max_cols, self.num_cols)))
+            col = choice(range(self.num_cols))
             if self.can_add_stream(col):
                 self.add_stream(col)
 
@@ -267,6 +296,11 @@ class MatrixAnimation:
         col_streams.popleft()
         self.num_streams -= 1
 
+    def remove_all_streams(self):
+        for col_streams in self.char_streams:
+            while col_streams:
+                self.remove_oldest_stream(col_streams)
+
     def render_debug_message(self):
         row = self.num_rows - 1
         for idx, char in enumerate(self.debug_message):
@@ -286,7 +320,7 @@ class MatrixAnimation:
         ))
 
     def handle_keypress(self, key):
-        if key < 0:
+        if key < 0 or not self.commands_enabled:
             return
         command = self.key_commands.get(chr(key))
         if command is not None:
@@ -308,9 +342,7 @@ class MatrixAnimation:
         self.is_stepping = False
 
     def clear_screen(self):
-        for col_streams in self.char_streams:
-            while col_streams:
-                self.remove_oldest_stream(col_streams)
+        self.remove_all_streams()
         self.stdscr.clear()
 
     def increase_bandwidth(self):
@@ -389,6 +421,10 @@ def main():
         help='show a list of key commands and exit', \
         action='store_true')
 
+    arg_parser.add_argument('-B', '--benchmark', \
+        help=f'run the standard {NAME} benchmark', \
+        action='store_true')
+
     arg_parser.add_argument('-d', '--debug', \
         help='show program runtime information during the animation', \
         action='store_true', default=DEBUG)
@@ -433,10 +469,19 @@ def main():
         for key, command, in KEY_COMMANDS.items():
             print(f'{key} => {command}')
 
+    def run_benchmark(overrides):
+        from datetime import datetime
+        benchmark_start = datetime.now()
+        wrapper(MatrixAnimation, **BENCHMARK_CONFIG)
+        benchmark_end = datetime.now()
+        print(benchmark_end - benchmark_start)
+
     kwargs = vars(arg_parser.parse_args(argv[1:]))
 
     if kwargs.get('commands'):
         print_commands()
+    elif kwargs.get('benchmark'):
+        run_benchmark(kwargs)
     else:
         wrapper(MatrixAnimation, **kwargs)
 
