@@ -31,6 +31,8 @@ enterthematrix
 enterthematrix -B
 ```
 
+_a terminal display with at least 80x40 cells is required to run the full benchmark_
+
 ### Key Commands
 
 ```
