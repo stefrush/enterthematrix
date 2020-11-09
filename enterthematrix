@@ -2,7 +2,7 @@
 
 NAME        = 'enterthematrix'
 DESCRIPTION = 'a classic matrix rain animation and benchmark tool'
-VERSION     = '2.1.0'
+VERSION     = '2.2.0'
 
 # DEFAULTS
 DEBUG              = False
