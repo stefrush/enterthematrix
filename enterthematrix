@@ -2,26 +2,44 @@
 
 NAME        = 'enterthematrix'
 DESCRIPTION = 'a classic matrix terminal animation using curses'
-VERSION     = '2.0.0'
+VERSION     = '2.1.0'
 
 # DEFAULTS
+DEBUG              = False
 BANDWIDTH          = 2
 THROUGHPUT         = 4
-NEOS_INFLUENCE     = 0.64e-2
-ANIMATION_INTERVAL = 0.0425
+NEOS_INFLUENCE     = 0.004
+ANIMATION_INTERVAL = 0.042
 LIMITER            = 0
 MAX_COLS           = 1280
 EXIT_KEYS          = ('q', 'Q', chr(0x1b))
 USE_ASYNC          = True
-DEBUG              = False
+MIN_STREAM_SIZE    = 2
 STREAM_SIZE_MULT   = 0.8
+KEY_COMMANDS       = {
+    'd': 'toggle_debug',
+    'p': 'toggle_paused',
+    's': 'trigger_step',
+    'c': 'clear_screen',
+    'b': 'increase_bandwidth',
+    'B': 'decrease_bandwidth',
+    't': 'increase_throughput',
+    'T': 'decrease_throughput',
+    'n': 'increase_neos_influence',
+    'N': 'decrease_neos_influence',
+    'a': 'increase_animation_interval',
+    'A': 'decrease_animation_interval',
+    'l': 'increase_limiter',
+    'L': 'decrease_limiter',
+}
 
 from sys import argv
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from collections import deque
-from random import choice, random
-from time import sleep
 from asyncio import run
+from time import sleep
+from random import choice, random
+from math import log
 from curses import (
     wrapper,
     curs_set,
@@ -43,10 +61,9 @@ class MatrixAnimation:
         use_default_colors()
         init_pair(PAIR_NORMAL, COLOR_GREEN, -1)
         self.pair_highlighted = color_pair(PAIR_HIGHLIGHTED) | A_BOLD
-        self.pair_normal    = color_pair(PAIR_NORMAL)
+        self.pair_normal      = color_pair(PAIR_NORMAL)
 
-        self.clean_kwargs(kwargs)
-
+        self.debug              = kwargs.get('debug', DEBUG)
         self.bandwidth          = kwargs.get('bandwidth', BANDWIDTH)
         self.throughput         = kwargs.get('throughput', THROUGHPUT)
         self.neos_influence     = kwargs.get('neos_influence', NEOS_INFLUENCE)
@@ -55,37 +72,67 @@ class MatrixAnimation:
         self.max_cols           = kwargs.get('max_cols', MAX_COLS)
         self.exit_keys          = kwargs.get('exit_keys', EXIT_KEYS)
         self.use_async          = kwargs.get('use_async', USE_ASYNC) and self.can_use_async()
-        self.debug              = kwargs.get('debug', DEBUG)
+        self.min_stream_size    = kwargs.get('min_stream_size', MIN_STREAM_SIZE)
         self.stream_size_mult   = kwargs.get('stream_size_mult', STREAM_SIZE_MULT)
+        self.key_commands       = kwargs.get('key_commands', KEY_COMMANDS)
+
+        self.bandwidth_increment          = 1
+        self.throughput_increment         = 1
+        self.neos_influence_increment     = 1e-3
+        self.animation_interval_increment = 1e-3
+        self.limiter_increment            = 1e-2
+
+        self.bandwidth_range          = (0, float('inf'))
+        self.throughput_range         = (0, float('inf'))
+        self.neos_influence_range     = (0, 1)
+        self.animation_interval_range = (0, float('inf'))
+        self.limiter_range            = (0, 1)
+        self.max_cols_range           = (1, float('inf'))
+        self.min_stream_size_range    = (MIN_STREAM_SIZE, float('inf'))
+        self.stream_size_mult_range   = (0, 1)
+
+        self.cleanable_params = (
+            'throughput',
+            'bandwidth',
+            'neos_influence',
+            'limiter',
+            'animation_interval',
+            'max_cols',
+            'min_stream_size',
+            'stream_size_mult',
+        )
+        self.clean_params()
 
         self.char_streams = [ deque() for _ in range(self.max_cols) ]
         self.num_streams  = 0
+        self.is_paused    = False
+        self.is_stepping  = False
 
         if self.use_async:
             run(self.run_async())
         else:
             self.run()
 
-    def clean_kwargs(self, kwargs):
-        bandwidth          = kwargs.get('bandwidth', 0)
-        throughput         = kwargs.get('throughput', 0)
-        animation_interval = kwargs.get('animation_interval', 0)
-        limiter            = kwargs.get('limiter', 0)
-        max_cols           = kwargs.get('max_cols', 1)
-        stream_size_mult   = kwargs.get('stream_size_mult', 0)
+    def clean_params(self):
+        for param in self.cleanable_params:
+            self.limit_param(param)
+            self.round_param(param)
 
-        if bandwidth < 0:
-            del kwargs['bandwidth']
-        if throughput < 0:
-            del kwargs['throughput']
-        if animation_interval < 0:
-            del kwargs['animation_interval']
-        if limiter < 0 or limiter >= 1:
-            del kwargs['limiter']
-        if max_cols < 1:
-            del kwargs['max_cols']
-        if stream_size_mult < 0:
-            del kwargs['stream_size_mult']
+    def limit_param(self, param):
+        param_val = getattr(self, param)
+        param_min, param_max = getattr(self, f'{param}_range')
+        if param_val < param_min:
+            setattr(self, param, param_min)
+        if param_val > param_max:
+            setattr(self, param, param_max)
+
+    def round_param(self, param):
+        param_val = getattr(self, param)
+        param_increment = getattr(self, f'{param}_increment', None)
+        if param_increment is not None:
+            param_precision = 0 if type(param_increment) is int else -int(log(param_increment, 10)) + 1
+            rounded_param = round(param_val, param_precision) if param_precision > 0 else int(param_val)
+            setattr(self, param, rounded_param)
 
     def can_use_async(self):
         try:
@@ -114,6 +161,7 @@ class MatrixAnimation:
             async_animation_interval = async_sleep(self.animation_interval)
             await gather(async_next_frame, async_animation_interval)
             key = self.stdscr.getch()
+            self.handle_keypress(key)
 
     def run(self):
         key = None
@@ -121,8 +169,11 @@ class MatrixAnimation:
             self.next_frame()
             sleep(self.animation_interval)
             key = self.stdscr.getch()
+            self.handle_keypress(key)
 
     def next_frame(self):
+        if self.is_paused and not self.is_stepping:
+            return
         self.add_streams()
         self.step_streams()
         self.render_streams()
@@ -146,11 +197,14 @@ class MatrixAnimation:
         return len(self.char_streams[col]) < self.bandwidth
 
     def add_stream(self, col):
-        size = choice(range(1, self.num_rows + 1))
-        size = int(size * self.stream_size_mult)
+        size = self.get_next_stream_size()
         stream = CharStream(size)
         self.char_streams[col].append(stream)
         self.num_streams += 1
+
+    def get_next_stream_size(self):
+        size = choice(range(1, self.num_rows + 1))
+        return int(size * self.stream_size_mult)
 
     def step_streams(self):
         for col_streams in self.char_streams:
@@ -221,8 +275,8 @@ class MatrixAnimation:
     @property
     def debug_message(self):
         return ' | '.join((
-            f'STR: {self.num_streams} / {self.max_streams}',
-            f'DIM: {self.num_cols} x {self.num_rows}',
+            f'STR: {self.num_streams}/{self.max_streams}',
+            f'DIM: {self.num_cols}x{self.num_rows}',
             f'B: {self.bandwidth}',
             f'T: {self.throughput}',
             f'N: {self.neos_influence}',
@@ -230,10 +284,68 @@ class MatrixAnimation:
             f'L: {self.limiter}',
         ))
 
+    def handle_keypress(self, key):
+        if key < 0:
+            return
+        command = self.key_commands.get(chr(key))
+        if command is not None:
+            self.exec_key_command(command)
+            self.clean_params()
+
+    def exec_key_command(self, command):
+        getattr(self, command)()
+
+    def toggle_debug(self):
+        self.debug = not self.debug
+
+    def toggle_paused(self):
+        self.is_paused = not self.is_paused
+
+    def trigger_step(self):
+        self.is_stepping = True
+        self.next_frame()
+        self.is_stepping = False
+
+    def clear_screen(self):
+        for col_streams in self.char_streams:
+            while col_streams:
+                self.remove_oldest_stream(col_streams)
+        self.stdscr.clear()
+
+    def increase_bandwidth(self):
+        self.bandwidth += self.bandwidth_increment
+
+    def decrease_bandwidth(self):
+        self.bandwidth -= self.bandwidth_increment
+
+    def increase_throughput(self):
+        self.throughput += self.throughput_increment
+
+    def decrease_throughput(self):
+        self.throughput -= self.throughput_increment
+
+    def increase_neos_influence(self):
+        self.neos_influence += self.neos_influence_increment
+
+    def decrease_neos_influence(self):
+        self.neos_influence -= self.neos_influence_increment
+
+    def increase_animation_interval(self):
+        self.animation_interval += self.animation_interval_increment
+
+    def decrease_animation_interval(self):
+        self.animation_interval -= self.animation_interval_increment
+
+    def increase_limiter(self):
+        self.limiter += self.limiter_increment
+
+    def decrease_limiter(self):
+        self.limiter -= self.limiter_increment
+
 FIRST_KATA,  NUM_KATAS  = 0xff66,   56
 FIRST_ALPHA, NUM_ALPHAS = ord('A'), 26
 FIRST_NUM,   NUM_NUMS   = ord('0'), 10
-ALPHABET = (
+ALPHABET = ( # Cypher: "All I see is blonde, brunette, redhead..."
     *range(FIRST_KATA, FIRST_KATA + NUM_KATAS),
     *range(FIRST_ALPHA, FIRST_ALPHA + NUM_ALPHAS),
     *range(FIRST_NUM, FIRST_NUM + NUM_NUMS),
@@ -272,6 +384,14 @@ def main():
     arg_parser.add_argument('-v', '--version', \
         action='version', version=f'{NAME} v{VERSION}')
 
+    arg_parser.add_argument('-c', '--commands', \
+        help='show a list of key commands and exit', \
+        action='store_true')
+
+    arg_parser.add_argument('-d', '--debug', \
+        help='show program runtime information during the animation', \
+        action='store_true', default=DEBUG)
+
     arg_parser.add_argument('-b', '--bandwidth', \
         help='set the maximum number of character animation streams per text column [0-inf)', \
         type=int, metavar='INT', default=BANDWIDTH)
@@ -282,39 +402,42 @@ def main():
 
     arg_parser.add_argument('-n', '--neos-influence', \
         help='follow the white rabbit [0-1]', \
-        type=float, metavar='FLOAT', default=NEOS_INFLUENCE, dest='neos_influence')
+        type=float, metavar='FLOAT', default=NEOS_INFLUENCE)
 
     arg_parser.add_argument('-a', '--animation-interval', \
         help='set the amount of time in seconds between animation frames [0-inf)', \
-        type=float, metavar='FLOAT', default=ANIMATION_INTERVAL, dest='animation_interval')
+        type=float, metavar='FLOAT', default=ANIMATION_INTERVAL)
 
     arg_parser.add_argument('-l', '--limiter', \
-        help='limit the maximum number of streams by a factor of the limiter value [0-1)', \
+        help='limit the maximum number of streams by a factor of the limiter value [0-1]', \
         type=float, metavar='FLOAT', default=LIMITER)
 
     arg_parser.add_argument('-m', '--max-cols', \
         help='set the maximum number of text columns to animate [1-inf)', \
-        type=int, metavar='INT', default=MAX_COLS, dest='max_cols')
+        type=int, metavar='INT', default=MAX_COLS)
 
     arg_parser.add_argument('-e', '--exit-keys', \
         help='set the keys to initiate exit; should be a space separated list eg. "e E"', \
-        nargs='+', metavar='KEY', default=EXIT_KEYS, dest='exit_keys')
+        nargs='+', metavar='KEY', default=EXIT_KEYS)
 
     arg_parser.add_argument('--use-async', \
         help='turn on async frame rendering in supported environments', \
-        action='store_true', default=USE_ASYNC, dest='use_async')
+        action='store_true', default=USE_ASYNC)
 
     arg_parser.add_argument('--no-use-async', \
         help='turn off async frame rendering in supported environments', \
         action='store_false', default=bool(not USE_ASYNC), dest='use_async')
 
-    arg_parser.add_argument('-d', '--debug', \
-        help='show program runtime information during the animation', \
-        action='store_true', default=DEBUG)
+    def print_commands():
+        for key, command, in KEY_COMMANDS.items():
+            print(f'{key} => {command}')
 
     kwargs = vars(arg_parser.parse_args(argv[1:]))
-    wrapper(MatrixAnimation, **kwargs)
-    exit(0)
+
+    if kwargs.get('commands'):
+        print_commands()
+    else:
+        wrapper(MatrixAnimation, **kwargs)
 
 if __name__ == '__main__':
     main()
