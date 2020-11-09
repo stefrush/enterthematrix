@@ -204,7 +204,8 @@ class MatrixAnimation:
 
     def get_next_stream_size(self):
         size = choice(range(1, self.num_rows + 1))
-        return int(size * self.stream_size_mult)
+        size = int(size * self.stream_size_mult)
+        return max(size, self.min_stream_size)
 
     def step_streams(self):
         for col_streams in self.char_streams:
