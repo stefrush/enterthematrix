@@ -86,7 +86,6 @@ _Commands are disabled during benchmarks._
 ```
 enterthematrix [-h] [-v] [-c] [-B] [-d] [-b INT] [-t INT] [-n FLOAT] [-a FLOAT] [-l FLOAT] [-m FLOAT] [-C INT] [-R INT] [-F INT] [-e KEY [KEY ...]] [--use-async] [--no-use-async]
 
-
 optional arguments:
   -h, --help            show this help message and exit
   -v, --version         show program's version number and exit
