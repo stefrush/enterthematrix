@@ -472,10 +472,6 @@ class CharStream:
 # DRIVER
 
 def main():
-    def print_commands():
-        for key, command, in KEY_COMMANDS.items():
-            print(f'{key} => {command}')
-
     def run_animation(config):
         wrapper(MatrixSimulation, **config)
 
@@ -487,6 +483,10 @@ def main():
         run_animation(config)
         benchmark_end = datetime.now()
         print(benchmark_end - benchmark_start)
+
+    def print_commands():
+        for key, command, in KEY_COMMANDS.items():
+            print(f'{key} => {command}')
 
     arg_parser = ArgumentParser(prog=NAME, description=DESCRIPTION)
 
