@@ -9,7 +9,7 @@ controllable matrix rain animation and benchmarking tool
 ### Dependencies
 
 * python3
-* font with Japanese Katakana support (unicode `0xff66`-`0xff9d`)
+* Font with Japanese Katakana support (unicode `0xff66`-`0xff9d`)
 
 ### Installation
 
@@ -31,7 +31,7 @@ enterthematrix
 enterthematrix -B
 ```
 
-The default benchmark is 4096 rendered frames with the following config:
+The standard benchmark as requested by Neo is 4096 rendered frames with the following config:
 
 * 16 bandwidth
 * 16 throughput
@@ -39,7 +39,7 @@ The default benchmark is 4096 rendered frames with the following config:
 * 40 rows
 * No animation interval
 * Async rendering off
-* Neo's influence at 1%
+* Neo's influence at 4%
 
 This means a standard benchmark requires a terminal display with 80x40 text cells in view to achieve maximum stress.
 
@@ -69,9 +69,7 @@ Commands are disabled during benchmarks.
 ### Usage
 
 ```
-usage: enterthematrix [-h] [-v] [-c] [-B] [-d] [-b INT] [-t INT] [-n FLOAT] [-a FLOAT] [-l FLOAT] [-C INT] [-R INT] [-F INT] [-e KEY [KEY ...]] [--use-async] [--no-use-async]
-
-controllable matrix rain animation and benchmarking tool
+enterthematrix [-h] [-v] [-c] [-B] [-d] [-b INT] [-t INT] [-n FLOAT] [-a FLOAT] [-l FLOAT] [-C INT] [-R INT] [-F INT] [-e KEY [KEY ...]] [--use-async] [--no-use-async]
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -96,9 +94,9 @@ optional arguments:
   -F INT, --max-frames INT
                         set the maximum number of frames to animate; default: inf; range: (1, inf)
   -e KEY [KEY ...], --exit-keys KEY [KEY ...]
-                        set the keys to initiate exit; should be a space separated list eg. "e E"
-  --use-async           turn on async frame rendering in supported environments
-  --no-use-async        turn off async frame rendering in supported environments
+                        set the keys to initiate exit; should be a space separated list eg. "e E"; default: ('q', 'Q', '\x1b')
+  --use-async           turn on async frame rendering in supported environments; default: True
+  --no-use-async        turn off async frame rendering in supported environments; default: False
   ```
 
 ### License

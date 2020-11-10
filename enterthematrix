@@ -318,10 +318,13 @@ class MatrixSimulation:
     def addch(self, row, col, char, is_highlighted=False):
         if self.can_addch(row, col):
             color = self.pair_highlighted if is_highlighted else self.pair_normal
-            self.stdscr.addch(row, col, char, color)
+            try:
+                self.stdscr.addch(row, col, char, color)
+            except Exception:
+                pass
 
     def can_addch(self, row, col):
-        return row < self.num_rows and col < self.num_cols - 1
+        return row < self.num_rows and col < self.num_cols
 
     def remove_streams(self):
         for col_streams in self.char_streams:
@@ -501,15 +504,18 @@ def main():
         type=int, metavar='INT')
 
     arg_parser.add_argument('-e', '--exit-keys', \
-        help='set the keys to initiate exit; should be a space separated list eg. "e E"', \
+        help='set the keys to initiate exit; should be a space separated list eg. "e E"; ' + \
+            f'default: {EXIT_KEYS}', \
         nargs='+', metavar='KEY')
 
     arg_parser.add_argument('--use-async', \
-        help='turn on async frame rendering in supported environments', \
+        help='turn on async frame rendering in supported environments; ' + \
+            f'default: {USE_ASYNC}', \
         action='store_true', default=None)
 
     arg_parser.add_argument('--no-use-async', \
-        help='turn off async frame rendering in supported environments', \
+        help='turn off async frame rendering in supported environments; ' + \
+            f'default: {not USE_ASYNC}', \
         action='store_false', dest='use_async', default=None)
 
     def print_commands():
@@ -528,15 +534,15 @@ def main():
         benchmark_end = datetime.now()
         print(benchmark_end - benchmark_start)
 
-    kwargs = vars(arg_parser.parse_args(argv[1:]))
-    kwargs = { k: v for k, v in kwargs.items() if v is not None }
+    args = vars(arg_parser.parse_args(argv[1:]))
+    args = { k: v for k, v in args.items() if v is not None }
 
-    if kwargs.get('commands'):
+    if args.get('commands'):
         print_commands()
-    elif kwargs.get('benchmark'):
-        run_benchmark(kwargs)
+    elif args.get('benchmark'):
+        run_benchmark(args)
     else:
-        run_animation(kwargs)
+        run_animation(args)
 
 if __name__ == '__main__':
     main()
