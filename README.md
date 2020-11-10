@@ -47,37 +47,37 @@ The amount of time elapsed during the benchmark will print once every frame has 
 
 ### Key Commands
 
-**d** => toggle_debug
+`d` => `toggle_debug`
 
-**p** => toggle_paused
+`p` => `toggle_paused`
 
-**s** => trigger_step
+`s` => `trigger_step`
 
-**c** => clear_screen
+`c` => `clear_screen`
 
-**b** => increase_bandwidth
+`b` => `increase_bandwidth`
 
-**B** => decrease_bandwidth
+`B` => `decrease_bandwidth`
 
-**t** => increase_throughput
+`t` => `increase_throughput`
 
-**T** => decrease_throughput
+`T` => `decrease_throughput`
 
-**n** => increase_neos_influence
+`n` => `increase_neos_influence`
 
-**N** => decrease_neos_influence
+`N` => `decrease_neos_influence`
 
-**a** => increase_animation_interval
+`a` => `increase_animation_interval`
 
-**A** => decrease_animation_interval
+`A` => `decrease_animation_interval`
 
-**l** => increase_limiter
+`l` => `increase_limiter`
 
-**L** => decrease_limiter
+`L` => `decrease_limiter`
 
-**m** => increase_stream_size_mult
+`m` => `increase_stream_size_mult`
 
-**M** => decrease_stream_size_mult
+`M` => `decrease_stream_size_mult`
 
 _Commands are disabled during benchmarks._
 
