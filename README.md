@@ -46,7 +46,6 @@ This means a standard benchmark requires a terminal display with 80x40 text cell
 The amount of time elapsed during the benchmark will print once every frame has been rendered.
 
 ### Key Commands
-
 ```
 d => toggle_debug
 p => toggle_paused
@@ -62,6 +61,8 @@ a => increase_animation_interval
 A => decrease_animation_interval
 l => increase_limiter
 L => decrease_limiter
+m => increase_stream_size_mult
+M => decrease_stream_size_mult
 ```
 
 Commands are disabled during benchmarks.
@@ -69,12 +70,13 @@ Commands are disabled during benchmarks.
 ### Usage
 
 ```
-enterthematrix [-h] [-v] [-c] [-B] [-d] [-b INT] [-t INT] [-n FLOAT] [-a FLOAT] [-l FLOAT] [-C INT] [-R INT] [-F INT] [-e KEY [KEY ...]] [--use-async] [--no-use-async]
+enterthematrix [-h] [-v] [-c] [-B] [-d] [-b INT] [-t INT] [-n FLOAT] [-a FLOAT] [-l FLOAT] [-m FLOAT] [-C INT] [-R INT] [-F INT] [-e KEY [KEY ...]] [--use-async] [--no-use-async]
+
 
 optional arguments:
   -h, --help            show this help message and exit
   -v, --version         show program's version number and exit
-  -c, --commands        show a list of key commands and exit
+  -c, --commands        show the list of key commands and exit
   -B, --benchmark       run the standard enterthematrix benchmark
   -d, --debug           show program runtime information during the animation
   -b INT, --bandwidth INT
@@ -87,6 +89,8 @@ optional arguments:
                         set the amount of time in seconds between animation frames; default: 0.042; range: (0, inf)
   -l FLOAT, --limiter FLOAT
                         limit the maximum number of streams by a factor of the limiter value; default: 0; range: (0, 1)
+  -m FLOAT, --stream-size-mult FLOAT
+                        set the average stream size to the number of rows times the multiplier value; default: 0.8; range: (0, inf)
   -C INT, --max-cols INT
                         set the maximum number of text columns to animate; default: 1280; range: (1, inf)
   -R INT, --max-rows INT
@@ -94,7 +98,7 @@ optional arguments:
   -F INT, --max-frames INT
                         set the maximum number of frames to animate; default: inf; range: (1, inf)
   -e KEY [KEY ...], --exit-keys KEY [KEY ...]
-                        set the keys to initiate exit; should be a space separated list eg. "e E"; default: ('q', 'Q', '\x1b')
+                        set the list of keys to initiate exit
   --use-async           turn on async frame rendering in supported environments; default: True
   --no-use-async        turn off async frame rendering in supported environments; default: False
   ```
