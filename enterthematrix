@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 
 NAME        = 'enterthematrix'
-DESCRIPTION = 'a classic matrix rain animation and benchmark tool'
-VERSION     = '2.2.0'
+DESCRIPTION = 'controllable matrix rain animation and benchmarking tool'
+VERSION     = '3.0.0'
 
 # DEFAULTS
+
 DEBUG              = False
 BANDWIDTH          = 2
 THROUGHPUT         = 4
@@ -19,7 +20,8 @@ USE_ASYNC          = True
 MIN_STREAM_SIZE    = 2
 STREAM_SIZE_MULT   = 0.8
 COMMANDS_ENABLED   = True
-KEY_COMMANDS       = {
+
+KEY_COMMANDS = {
     'd': 'toggle_debug',
     'p': 'toggle_paused',
     's': 'trigger_step',
@@ -35,7 +37,47 @@ KEY_COMMANDS       = {
     'l': 'increase_limiter',
     'L': 'decrease_limiter',
 }
-BENCHMARK_CONFIG   = {
+
+BANDWIDTH_INCREMENT          = 1
+THROUGHPUT_INCREMENT         = 1
+NEOS_INFLUENCE_INCREMENT     = 1e-3
+ANIMATION_INTERVAL_INCREMENT = 1e-3
+LIMITER_INCREMENT            = 1e-2
+
+BANDWIDTH_RANGE          = (0, float('inf'))
+THROUGHPUT_RANGE         = (0, float('inf'))
+NEOS_INFLUENCE_RANGE     = (0, 1)
+ANIMATION_INTERVAL_RANGE = (0, float('inf'))
+LIMITER_RANGE            = (0, 1)
+MAX_COLS_RANGE           = (1, float('inf'))
+MAX_ROWS_RANGE           = (1, float('inf'))
+MAX_FRAMES_RANGE         = (1, float('inf'))
+MIN_STREAM_SIZE_RANGE    = (MIN_STREAM_SIZE, float('inf'))
+STREAM_SIZE_MULT_RANGE   = (0, 1)
+
+CLEANABLE_PARAMS = (
+    'throughput',
+    'bandwidth',
+    'neos_influence',
+    'limiter',
+    'animation_interval',
+    'max_cols',
+    'max_rows',
+    'max_frames',
+    'min_stream_size',
+    'stream_size_mult',
+)
+
+FIRST_KATA,  NUM_KATAS  = 0xff66,   56
+FIRST_ALPHA, NUM_ALPHAS = ord('A'), 26
+FIRST_NUM,   NUM_NUMS   = ord('0'), 10
+ALPHABET = ( # Cypher: "All I see is blonde, brunette, redhead..."
+    *range(FIRST_KATA, FIRST_KATA + NUM_KATAS),
+    *range(FIRST_ALPHA, FIRST_ALPHA + NUM_ALPHAS),
+    *range(FIRST_NUM, FIRST_NUM + NUM_NUMS),
+)
+
+BENCHMARK_CONFIG = {
     'max_frames':         2 ** 12,
     'debug':              True,
     'bandwidth':          8,
@@ -48,8 +90,10 @@ BENCHMARK_CONFIG   = {
     'commands_enabled':   False,
 }
 
+# IMPORTS
+
 from sys import argv
-from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
+from argparse import ArgumentParser
 from collections import deque
 from asyncio import run
 from time import sleep
@@ -68,7 +112,9 @@ PAIR_HIGHLIGHTED = 0
 PAIR_NORMAL      = 1
 SPACE            = chr(0x20)
 
-class MatrixAnimation:
+# SIMULATION
+
+class MatrixSimulation:
     def __init__(self, stdscr, **kwargs):
         self.stdscr = stdscr
         self.stdscr.nodelay(1)
@@ -94,31 +140,24 @@ class MatrixAnimation:
         self.commands_enabled   = kwargs.get('commands_enabled', COMMANDS_ENABLED)
         self.key_commands       = kwargs.get('key_commands', KEY_COMMANDS)
 
-        self.bandwidth_increment          = 1
-        self.throughput_increment         = 1
-        self.neos_influence_increment     = 1e-3
-        self.animation_interval_increment = 1e-3
-        self.limiter_increment            = 1e-2
+        self.bandwidth_increment          = BANDWIDTH_INCREMENT
+        self.throughput_increment         = THROUGHPUT_INCREMENT
+        self.neos_influence_increment     = NEOS_INFLUENCE_INCREMENT
+        self.animation_interval_increment = ANIMATION_INTERVAL_INCREMENT
+        self.limiter_increment            = LIMITER_INCREMENT
 
-        self.bandwidth_range          = (0, float('inf'))
-        self.throughput_range         = (0, float('inf'))
-        self.neos_influence_range     = (0, 1)
-        self.animation_interval_range = (0, float('inf'))
-        self.limiter_range            = (0, 1)
-        self.max_cols_range           = (1, float('inf'))
-        self.min_stream_size_range    = (MIN_STREAM_SIZE, float('inf'))
-        self.stream_size_mult_range   = (0, 1)
+        self.bandwidth_range          = BANDWIDTH_RANGE
+        self.throughput_range         = THROUGHPUT_RANGE
+        self.neos_influence_range     = NEOS_INFLUENCE_RANGE
+        self.animation_interval_range = ANIMATION_INTERVAL_RANGE
+        self.limiter_range            = LIMITER_RANGE
+        self.max_cols_range           = MAX_COLS_RANGE
+        self.max_rows_range           = MAX_ROWS_RANGE
+        self.max_frames_range         = MAX_FRAMES_RANGE
+        self.min_stream_size_range    = MIN_STREAM_SIZE_RANGE
+        self.stream_size_mult_range   = STREAM_SIZE_MULT_RANGE
 
-        self.cleanable_params = (
-            'throughput',
-            'bandwidth',
-            'neos_influence',
-            'limiter',
-            'animation_interval',
-            'max_cols',
-            'min_stream_size',
-            'stream_size_mult',
-        )
+        self.cleanable_params = CLEANABLE_PARAMS
         self.clean_params()
 
         self.char_streams = [ deque() for _ in range(self.max_cols) ]
@@ -279,10 +318,13 @@ class MatrixAnimation:
     def addch(self, row, col, char, is_highlighted=False):
         if self.can_addch(row, col):
             color = self.pair_highlighted if is_highlighted else self.pair_normal
-            self.stdscr.addch(row, col, char, color)
+            try:
+                self.stdscr.addch(row, col, char, color)
+            except Exception:
+                pass
 
     def can_addch(self, row, col):
-        return row < self.num_rows and col < self.num_cols - 1
+        return row < self.num_rows and col < self.num_cols
 
     def remove_streams(self):
         for col_streams in self.char_streams:
@@ -375,15 +417,6 @@ class MatrixAnimation:
     def decrease_limiter(self):
         self.limiter -= self.limiter_increment
 
-FIRST_KATA,  NUM_KATAS  = 0xff66,   56
-FIRST_ALPHA, NUM_ALPHAS = ord('A'), 26
-FIRST_NUM,   NUM_NUMS   = ord('0'), 10
-ALPHABET = ( # Cypher: "All I see is blonde, brunette, redhead..."
-    *range(FIRST_KATA, FIRST_KATA + NUM_KATAS),
-    *range(FIRST_ALPHA, FIRST_ALPHA + NUM_ALPHAS),
-    *range(FIRST_NUM, FIRST_NUM + NUM_NUMS),
-)
-
 class CharStream:
     def __init__(self, size):
         self.size                 = size
@@ -410,80 +443,106 @@ class CharStream:
             return True
         return False
 
+# DRIVER
+
 def main():
-    arg_parser = ArgumentParser(prog=NAME, description=DESCRIPTION, \
-        formatter_class=ArgumentDefaultsHelpFormatter)
+    arg_parser = ArgumentParser(prog=NAME, description=DESCRIPTION)
 
     arg_parser.add_argument('-v', '--version', \
         action='version', version=f'{NAME} v{VERSION}')
 
     arg_parser.add_argument('-c', '--commands', \
         help='show a list of key commands and exit', \
-        action='store_true')
+        action='store_true', default=None)
 
     arg_parser.add_argument('-B', '--benchmark', \
         help=f'run the standard {NAME} benchmark', \
-        action='store_true')
+        action='store_true', default=None)
 
     arg_parser.add_argument('-d', '--debug', \
         help='show program runtime information during the animation', \
-        action='store_true', default=DEBUG)
+        action='store_true', default=None)
 
     arg_parser.add_argument('-b', '--bandwidth', \
-        help='set the maximum number of character animation streams per text column [0-inf)', \
-        type=int, metavar='INT', default=BANDWIDTH)
+        help='set the maximum number of character animation streams per text column; ' + \
+            f'default: {BANDWIDTH}; range: {BANDWIDTH_RANGE}', \
+        type=int, metavar='INT')
 
     arg_parser.add_argument('-t', '--throughput', \
-        help='set the number of character animation streams to create per animation frame [0-inf)', \
-        type=int, metavar='INT', default=THROUGHPUT)
+        help='set the number of character animation streams to create per animation frame; ' + \
+            f'default: {THROUGHPUT}; range: {THROUGHPUT_RANGE}', \
+        type=int, metavar='INT')
 
     arg_parser.add_argument('-n', '--neos-influence', \
-        help='follow the white rabbit [0-1]', \
-        type=float, metavar='FLOAT', default=NEOS_INFLUENCE)
+        help='follow the white rabbit; ' + \
+            f'default: {NEOS_INFLUENCE}; range: {NEOS_INFLUENCE_RANGE}', \
+        type=float, metavar='FLOAT')
 
     arg_parser.add_argument('-a', '--animation-interval', \
-        help='set the amount of time in seconds between animation frames [0-inf)', \
-        type=float, metavar='FLOAT', default=ANIMATION_INTERVAL)
+        help='set the amount of time in seconds between animation frames; ' + \
+            f'default: {ANIMATION_INTERVAL}; range: {ANIMATION_INTERVAL_RANGE}', \
+        type=float, metavar='FLOAT')
 
     arg_parser.add_argument('-l', '--limiter', \
-        help='limit the maximum number of streams by a factor of the limiter value [0-1]', \
-        type=float, metavar='FLOAT', default=LIMITER)
+        help='limit the maximum number of streams by a factor of the limiter value; ' + \
+            f'default: {LIMITER}; range: {LIMITER_RANGE}', \
+        type=float, metavar='FLOAT')
 
-    arg_parser.add_argument('-m', '--max-cols', \
-        help='set the maximum number of text columns to animate [1-inf)', \
-        type=int, metavar='INT', default=MAX_COLS)
+    arg_parser.add_argument('-C', '--max-cols', \
+        help='set the maximum number of text columns to animate; ' + \
+            f'default: {MAX_COLS}; range: {MAX_COLS_RANGE}', \
+        type=int, metavar='INT')
+
+    arg_parser.add_argument('-R', '--max-rows', \
+        help='set the maximum number of text rows to animate; ' + \
+            f'default: {MAX_ROWS}; range: {MAX_ROWS_RANGE}', \
+        type=int, metavar='INT')
+
+    arg_parser.add_argument('-F', '--max-frames', \
+        help='set the maximum number of frames to animate; ' + \
+            f'default: {MAX_FRAMES}; range: {MAX_FRAMES_RANGE}', \
+        type=int, metavar='INT')
 
     arg_parser.add_argument('-e', '--exit-keys', \
-        help='set the keys to initiate exit; should be a space separated list eg. "e E"', \
-        nargs='+', metavar='KEY', default=EXIT_KEYS)
+        help='set the keys to initiate exit; should be a space separated list eg. "e E"; ' + \
+            f'default: {EXIT_KEYS}', \
+        nargs='+', metavar='KEY')
 
     arg_parser.add_argument('--use-async', \
-        help='turn on async frame rendering in supported environments', \
-        action='store_true', default=USE_ASYNC)
+        help='turn on async frame rendering in supported environments; ' + \
+            f'default: {USE_ASYNC}', \
+        action='store_true', default=None)
 
     arg_parser.add_argument('--no-use-async', \
-        help='turn off async frame rendering in supported environments', \
-        action='store_false', default=bool(not USE_ASYNC), dest='use_async')
+        help='turn off async frame rendering in supported environments; ' + \
+            f'default: {not USE_ASYNC}', \
+        action='store_false', dest='use_async', default=None)
 
     def print_commands():
         for key, command, in KEY_COMMANDS.items():
             print(f'{key} => {command}')
 
-    def run_benchmark():
+    def run_animation(config):
+        wrapper(MatrixSimulation, **config)
+
+    def run_benchmark(overrides):
         from datetime import datetime
+        config = BENCHMARK_CONFIG.copy()
+        config.update(overrides)
         benchmark_start = datetime.now()
-        wrapper(MatrixAnimation, **BENCHMARK_CONFIG)
+        run_animation(config)
         benchmark_end = datetime.now()
         print(benchmark_end - benchmark_start)
 
-    kwargs = vars(arg_parser.parse_args(argv[1:]))
+    args = vars(arg_parser.parse_args(argv[1:]))
+    args = { k: v for k, v in args.items() if v is not None }
 
-    if kwargs.get('commands'):
+    if args.get('commands'):
         print_commands()
-    elif kwargs.get('benchmark'):
-        run_benchmark()
+    elif args.get('benchmark'):
+        run_benchmark(args)
     else:
-        wrapper(MatrixAnimation, **kwargs)
+        run_animation(args)
 
 if __name__ == '__main__':
     main()
