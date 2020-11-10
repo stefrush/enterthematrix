@@ -38,7 +38,7 @@ The standard benchmark as requested by Neo is 4096 rendered frames with the foll
 * 80 columns
 * 40 rows
 * No animation interval
-* Async rendering off
+* Async frame rendering off
 * Neo's influence at 4%
 
 This means a standard benchmark requires a terminal display with 80x40 text cells in view to achieve maximum stress.
@@ -46,26 +46,40 @@ This means a standard benchmark requires a terminal display with 80x40 text cell
 The amount of time elapsed during the benchmark will print once every frame has been rendered.
 
 ### Key Commands
-```
-d => toggle_debug
-p => toggle_paused
-s => trigger_step
-c => clear_screen
-b => increase_bandwidth
-B => decrease_bandwidth
-t => increase_throughput
-T => decrease_throughput
-n => increase_neos_influence
-N => decrease_neos_influence
-a => increase_animation_interval
-A => decrease_animation_interval
-l => increase_limiter
-L => decrease_limiter
-m => increase_stream_size_mult
-M => decrease_stream_size_mult
-```
 
-Commands are disabled during benchmarks.
+**d** => toggle_debug
+
+**p** => toggle_paused
+
+**s** => trigger_step
+
+**c** => clear_screen
+
+**b** => increase_bandwidth
+
+**B** => decrease_bandwidth
+
+**t** => increase_throughput
+
+**T** => decrease_throughput
+
+**n** => increase_neos_influence
+
+**N** => decrease_neos_influence
+
+**a** => increase_animation_interval
+
+**A** => decrease_animation_interval
+
+**l** => increase_limiter
+
+**L** => decrease_limiter
+
+**m** => increase_stream_size_mult
+
+**M** => decrease_stream_size_mult
+
+_Commands are disabled during benchmarks._
 
 ### Usage
 
@@ -101,7 +115,7 @@ optional arguments:
                         set the list of keys to initiate exit
   --use-async           turn on async frame rendering in supported environments; default: True
   --no-use-async        turn off async frame rendering in supported environments; default: False
-  ```
+```
 
 ### License
 
