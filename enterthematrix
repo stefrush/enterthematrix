@@ -2,7 +2,7 @@
 
 NAME        = 'enterthematrix'
 DESCRIPTION = 'controllable matrix rain animation and benchmarking tool'
-VERSION     = '3.0.0'
+VERSION     = '3.1.0'
 
 DEBUG_DESCRIPTION              = 'show program runtime information during the animation'
 BANDWIDTH_DESCRIPTION          = 'set the maximum number of character animation streams per text column'
