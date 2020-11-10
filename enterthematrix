@@ -542,7 +542,7 @@ def main():
         type=int, metavar='INT')
 
     arg_parser.add_argument('-e', '--exit-keys', \
-        help=EXIT_KEYS_DESCRIPTION, \
+        help=f'{EXIT_KEYS_DESCRIPTION}; default: {EXIT_KEYS}', \
         nargs='+', metavar='KEY')
 
     arg_parser.add_argument('--use-async', \

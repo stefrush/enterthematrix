@@ -111,7 +111,7 @@ optional arguments:
   -F INT, --max-frames INT
                         set the maximum number of frames to animate; default: inf; range: (1, inf)
   -e KEY [KEY ...], --exit-keys KEY [KEY ...]
-                        set the list of keys to initiate exit
+                        set the list of keys to initiate exit; default: ('q', 'Q', '\x1b')
   --use-async           turn on async frame rendering in supported environments; default: True
   --no-use-async        turn off async frame rendering in supported environments; default: False
 ```
