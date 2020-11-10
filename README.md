@@ -2,7 +2,7 @@
 
 controllable matrix rain animation and benchmarking tool
 
-<img src="https://enterthematrix.space/img/demo-0.gif" alt="demo gif">
+<img src="https://enterthematrix.space/img/demo-1.gif" alt="demo gif">
 
 ## Documentation
 
