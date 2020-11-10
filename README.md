@@ -1,6 +1,6 @@
 # enterthematrix
 
-a classic matrix rain animation and benchmark tool
+controllable matrix rain animation and benchmarking tool
 
 <img src="https://enterthematrix.space/img/demo-0.gif" alt="demo gif">
 
@@ -14,8 +14,8 @@ a classic matrix rain animation and benchmark tool
 ### Installation
 
 ```sh
-curl https://raw.githubusercontent.com/stefrush/enterthematrix/master/enterthematrix -o /usr/local/bin/enterthematrix
-chmod +x /usr/local/bin/enterthematrix
+sudo curl https://raw.githubusercontent.com/stefrush/enterthematrix/master/enterthematrix -o /usr/local/bin/enterthematrix
+sudo chmod a+rx /usr/local/bin/enterthematrix
 enterthematrix --version
 ```
 
@@ -31,7 +31,19 @@ enterthematrix
 enterthematrix -B
 ```
 
-_a terminal display with at least 80x40 cells is required to run the full benchmark_
+The default benchmark is 4096 rendered frames with the following config:
+
+* 16 bandwidth
+* 16 throughput
+* 80 columns
+* 40 rows
+* No animation interval
+* Async rendering off
+* Neo's influence at 1%
+
+This means a standard benchmark requires a terminal display with 80x40 text cells in view to achieve maximum stress.
+
+The amount of time elapsed during the benchmark will print once every frame has been rendered.
 
 ### Key Commands
 
@@ -52,36 +64,42 @@ l => increase_limiter
 L => decrease_limiter
 ```
 
-_commands are disabled during benchmarks_
+Commands are disabled during benchmarks.
 
 ### Usage
 
 ```
-enterthematrix [-h] [-v] [-c] [-B] [-d] [-b INT] [-t INT] [-n FLOAT] [-a FLOAT] [-l FLOAT] [-m INT] [-e KEY [KEY ...]] [--use-async] [--no-use-async]
+usage: enterthematrix [-h] [-v] [-c] [-B] [-d] [-b INT] [-t INT] [-n FLOAT] [-a FLOAT] [-l FLOAT] [-C INT] [-R INT] [-F INT] [-e KEY [KEY ...]] [--use-async] [--no-use-async]
+
+controllable matrix rain animation and benchmarking tool
 
 optional arguments:
   -h, --help            show this help message and exit
   -v, --version         show program's version number and exit
-  -c, --commands        show a list of key commands and exit (default: False)
-  -B, --benchmark       run the standard enterthematrix benchmark (default: False)
-  -d, --debug           show program runtime information during the animation (default: False)
+  -c, --commands        show a list of key commands and exit
+  -B, --benchmark       run the standard enterthematrix benchmark
+  -d, --debug           show program runtime information during the animation
   -b INT, --bandwidth INT
-                        set the maximum number of character animation streams per text column [0-inf) (default: 2)
+                        set the maximum number of character animation streams per text column; default: 2; range: (0, inf)
   -t INT, --throughput INT
-                        set the number of character animation streams to create per animation frame [0-inf) (default: 4)
+                        set the number of character animation streams to create per animation frame; default: 4; range: (0, inf)
   -n FLOAT, --neos-influence FLOAT
-                        follow the white rabbit [0-1] (default: 0.004)
+                        follow the white rabbit; default: 0.004; range: (0, 1)
   -a FLOAT, --animation-interval FLOAT
-                        set the amount of time in seconds between animation frames [0-inf) (default: 0.042)
+                        set the amount of time in seconds between animation frames; default: 0.042; range: (0, inf)
   -l FLOAT, --limiter FLOAT
-                        limit the maximum number of streams by a factor of the limiter value [0-1] (default: 0)
-  -m INT, --max-cols INT
-                        set the maximum number of text columns to animate [1-inf) (default: 1280)
+                        limit the maximum number of streams by a factor of the limiter value; default: 0; range: (0, 1)
+  -C INT, --max-cols INT
+                        set the maximum number of text columns to animate; default: 1280; range: (1, inf)
+  -R INT, --max-rows INT
+                        set the maximum number of text rows to animate; default: inf; range: (1, inf)
+  -F INT, --max-frames INT
+                        set the maximum number of frames to animate; default: inf; range: (1, inf)
   -e KEY [KEY ...], --exit-keys KEY [KEY ...]
-                        set the keys to initiate exit; should be a space separated list eg. "e E" (default: ('q', 'Q', '\x1b'))
-  --use-async           turn on async frame rendering in supported environments (default: True)
-  --no-use-async        turn off async frame rendering in supported environments (default: False)
-```
+                        set the keys to initiate exit; should be a space separated list eg. "e E"
+  --use-async           turn on async frame rendering in supported environments
+  --no-use-async        turn off async frame rendering in supported environments
+  ```
 
 ### License
 
